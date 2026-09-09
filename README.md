@@ -52,7 +52,7 @@ Verdict = APPROVE
 
 ```
 apps/
-  web/            Next.js — creator console (live); respondent claim page (not yet built)
+  web/            Next.js — creator console + respondent claim page (Selfie Check -> payout)
   apps-script/    Container-bound Google Apps Script (clasp-managed)
 services/
   resource-server/  Fastify — x402-gated verification service (the "service" being sold)
@@ -146,6 +146,28 @@ it on the Mirror Node:
    and paste the transaction id to verify funding — checked against the
    Mirror Node, not just taken on faith. The dashboard below polls
    orchestrator's `/forms/:formId/stats` live.
+
+### World ID (Selfie Check on claim)
+
+1. Create an app at [developer.world.org](https://developer.world.org) —
+   grab `app_id`, `rp_id`, and `signing_key` (keep the signing key secret,
+   server-side only).
+2. Selfie Check needs an extra feature flag enabled by a World rep even for
+   sandbox testing — request it through your World point of contact before
+   expecting a real claim to succeed.
+3. Add `WORLD_APP_ID` / `WORLD_RP_ID` / `WORLD_SIGNING_KEY` to
+   `services/orchestrator/.env` (`WORLD_ENVIRONMENT=sandbox` while access is
+   pending).
+4. The respondent claim page lives at `apps/web`'s `/claim?formId=<id>&responseId=<id>`
+   — reachable once a response has been APPROVE'd through the webhook path.
+
+**Proof this works end to end (as much as is testable without a physical
+device):** RP-signature generation is real local signing, verified live.
+A claim attempt with a deliberately invalid proof correctly round-trips to
+World's real `v4/verify` endpoint and gets rejected — confirming the
+`rp_id` and plumbing are correct independent of whether Selfie Check
+access has been granted yet. A real successful claim needs that access
+grant plus someone completing Selfie Check on the sandbox app.
 
 ## License
 

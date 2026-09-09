@@ -181,6 +181,52 @@ Fixed to check every record in the response; re-tested against the same
 real transaction (true) plus two deliberately-wrong cases (amount too
 high, wrong recipient — both correctly false).
 
+## 2026-09-09 — World ID Selfie Check wired into the claim flow
+
+Loop 2 is now complete end to end in code: approved response -> claim page
+-> Selfie Check -> Privy wallet -> Hedera payout. Full flow, verified
+against real APIs where testable without a physical device walkthrough
+(details below).
+
+**Package split, confirmed from actual installed types, not docs alone:**
+`@worldcoin/idkit-server` (pure Node, no WASM/browser bundle) holds
+`signRequest` for RP-signing on the backend; `@worldcoin/idkit-core`
+re-exports the same function but pulls in the full client-capable bundle —
+unnecessary weight for orchestrator, so orchestrator depends on
+`idkit-server` directly and only `apps/web` depends on the full `idkit`
+React package.
+
+**The full request flow**, matching World's documented 9-step pattern:
+orchestrator signs an RP context server-side (`signing key` never reaches
+the browser) -> claim page requests that signature -> `IDKitRequestWidget`
+(preset `selfieCheckLegacy`, `allow_legacy_proofs: true` — required even
+though the preset name implies it's handled; verified against the actual
+`IDKitRequestConfig` type, which has no `?` on that field) opens for the
+respondent -> on success, the proof is forwarded to orchestrator ->
+orchestrator forwards it *as-is* to World's real `v4/verify` endpoint ->
+only on a valid response does the nullifier get checked for reuse and the
+payout fire.
+
+**Nullifier scope is per-form, not global**
+(`formdrop-claim-<formId>`): a verified human can claim from many
+different forms over time, just not drain the same pot twice by
+resubmitting under fake emails. This matches the brief's actual threat
+model (protect *this* pot) rather than a stricter "one payout ever across
+the whole platform" reading, which would be wrong for a real product.
+
+**What's verified live vs. what still needs a physical device:**
+- Verified: RP-signature generation (pure local ECDSA signing, no network).
+- Verified: a claim attempt with a deliberately invalid World ID proof
+  round-trips to World's *real* `v4/verify` endpoint and is correctly
+  rejected (422) — proves `rp_id` and the whole plumbing are wired
+  correctly, independent of whether Selfie Check itself is enabled yet.
+- Not verified (can't be, from here): a real successful Selfie Check
+  completion. That needs the feature flag enabled for this app by a World
+  rep, the sandbox app on a real Android device, and someone physically
+  clicking through the flow — none of which is possible from this
+  environment. `WORLD_ENVIRONMENT=sandbox` is set so it's ready the moment
+  access is confirmed.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a
