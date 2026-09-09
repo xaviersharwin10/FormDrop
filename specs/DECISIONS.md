@@ -79,6 +79,25 @@ means. `specs/PROJECT_BRIEF.md` keeps the original wording throughout since
 it's the source planning artifact; everything else (package scope
 `@formdrop/*`, README, repo) uses the new name.
 
+## 2026-09-09 — Day-2 (partial): real webhook -> paid verification path
+
+`POST /webhook/form-submit` on orchestrator is now real, not a stub: it
+validates the payload shape (rejecting bad input before paying anything),
+calls resource-server's `/verify` through the x402 client, records the
+result, and returns the verdict. Smoke-tested against both live services —
+a webhook POST triggers a real settled Hedera testnet transaction, confirmed
+on the Mirror Node.
+
+Persistence is a plain in-memory `Map` for now (`responseStore.ts`) —
+explicitly a placeholder, not a design decision. It gets replaced by
+`packages/db` once the dashboard (Day 4) or duplicate-detection (Day 3 LLM
+work) actually need it to survive a restart or be queryable.
+
+Still stubbed: the LLM judgment itself (`resource-server/src/verify.ts`
+always approves), the Apps Script side hasn't been pointed at a real
+deployed orchestrator URL yet, and there's no claim email / HCS anchoring /
+Privy / World ID yet.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a
