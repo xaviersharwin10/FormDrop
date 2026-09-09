@@ -1,4 +1,5 @@
 import "dotenv/config";
+import type { Network } from "@x402/core/types";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -11,7 +12,7 @@ function requireEnv(name: string): string {
 export const config = {
   hederaAccountId: requireEnv("HEDERA_ACCOUNT_ID"),
   hederaPrivateKey: requireEnv("HEDERA_PRIVATE_KEY"),
-  hederaNetwork: process.env.HEDERA_NETWORK ?? "hedera:testnet",
+  hederaNetwork: (process.env.HEDERA_NETWORK ?? "hedera:testnet") as Network,
   resourceServerUrl: process.env.RESOURCE_SERVER_URL ?? "http://localhost:4001",
   port: Number(process.env.PORT ?? 4002),
 };

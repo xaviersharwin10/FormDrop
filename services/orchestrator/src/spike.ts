@@ -28,6 +28,13 @@ async function main() {
   });
 
   if (!response.ok) {
+    const paymentRequiredHeader = response.headers.get("payment-required");
+    if (paymentRequiredHeader) {
+      console.error(
+        "Decoded payment-required header:",
+        JSON.stringify(JSON.parse(Buffer.from(paymentRequiredHeader, "base64").toString()), null, 2),
+      );
+    }
     throw new Error(`Request failed after payment: HTTP ${response.status} ${await response.text()}`);
   }
 
