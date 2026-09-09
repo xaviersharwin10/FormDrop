@@ -1,0 +1,89 @@
+# Paid Forms
+
+A Google Forms add-on that pays respondents the instant they submit a valid
+response. The form creator funds a payout pot; an AI agent judges response
+quality; approved respondents get paid in seconds via Hedera settlement,
+without ever seeing a wallet, seed phrase, or the word "crypto."
+
+Built for [ETHOnline 2026](https://ethglobal.com/events/ethonline2026).
+
+> Status: early scaffold, actively being built. This README will grow to
+> cover full setup, architecture, and the payment flow as pieces land — see
+> `specs/DECISIONS.md` for the planning log and `specs/PROJECT_BRIEF.md` for
+> the full project brief.
+
+## Why this, why Web3
+
+Paid surveys have been tried before — as new standalone platforms nobody
+adopted. This ships inside the tool 700M+ people already use (Google Forms),
+with an AI agent that makes instant payout *safe* instead of an instant
+fraud vector, and a one-time World ID Selfie Check that prevents one person
+draining the pot under many fake emails. Sub-dollar, cross-border,
+instant-settlement payouts to strangers aren't possible on card rails; Hedera
+makes them possible at near-zero cost.
+
+## Architecture
+
+Two loops:
+
+**Loop 1 — Response → Verification → Proof**
+
+```
+Google Form submit
+  -> Apps Script onFormSubmit (installable trigger)
+  -> UrlFetchApp.fetch() POST -> orchestrator service
+  -> orchestrator pays resource-server via x402 (Blocky402 facilitator, Hedera testnet)
+  -> resource-server runs the LLM quality/fraud judgment, returns verdict
+  -> orchestrator anchors verdict + payload hash to Hedera Consensus Service (HCS)
+```
+
+**Loop 2 — Approval → Identity → Payout**
+
+```
+Verdict = APPROVE
+  -> claim email sent to respondent
+  -> respondent clicks -> World ID Selfie Check (proves unique personhood)
+  -> Privy embedded wallet looked up / provisioned by email
+  -> payout settles on Hedera
+  -> creator dashboard updates live
+```
+
+## Repo layout
+
+```
+apps/
+  web/            Next.js — creator funding/dashboard + respondent claim page
+  apps-script/    Container-bound Google Apps Script (clasp-managed)
+services/
+  resource-server/  Fastify — x402-gated verification service (the "service" being sold)
+  orchestrator/     Fastify — webhook receiver, paying x402 client, HCS anchoring, payouts, email
+packages/
+  db/             Postgres schema + client (shared by resource-server, orchestrator, web)
+  shared/         Shared TypeScript types/utilities
+specs/            Planning docs and AI-assisted-workflow disclosure artifacts
+```
+
+## Sponsor integrations
+
+- **Hedera (AI & Agentic Payments track):** `resource-server` hosts a live
+  x402-gated verification endpoint on Hedera testnet, settled through the
+  Blocky402 facilitator; `orchestrator` is the paying client. Verdicts are
+  anchored to HCS as a verifiable audit trail.
+- **Privy (Best B2B financial product + Best financial flow):** creator-side
+  pot funding/management, and respondent-side claim-to-payout, both via Privy
+  embedded wallets.
+- **World (Selfie Check):** gates the claim step to prove unique personhood
+  and prevent pot-draining via fake-email farming.
+
+## Setup
+
+Setup instructions land here as each service comes online. Requires Node.js
+20+ and pnpm.
+
+```
+pnpm install
+```
+
+## License
+
+TBD.
