@@ -77,12 +77,32 @@ specs/            Planning docs and AI-assisted-workflow disclosure artifacts
 
 ## Setup
 
-Setup instructions land here as each service comes online. Requires Node.js
-20+ and pnpm.
+Requires Node.js 20+ and pnpm.
 
 ```
 pnpm install
 ```
+
+### Hedera testnet + Blocky402 (resource-server and orchestrator)
+
+1. Create a testnet account at [portal.hedera.com](https://portal.hedera.com)
+   (free, instant, includes test HBAR). Grab the **ECDSA** private key, not
+   ED25519 — `@x402/hedera` requires `PrivateKey.fromStringECDSA`.
+2. `cp services/resource-server/.env.example services/resource-server/.env`
+   — set `HEDERA_PAY_TO_ACCOUNT_ID` to the account that should *receive*
+   verification payments (public account ID only, no key needed here).
+3. `cp services/orchestrator/.env.example services/orchestrator/.env` — set
+   `HEDERA_ACCOUNT_ID` / `HEDERA_PRIVATE_KEY` to the account that *pays* for
+   verification calls.
+4. Start the resource server: `pnpm dev:resource-server` (listens on
+   `:4001`).
+5. Prove one real x402 payment end to end: `pnpm --filter
+   @paid-forms/orchestrator spike`. Expect: a 402 challenge from the live
+   Blocky402 facilitator on `hedera:testnet`, an automatic signed retry, a
+   settled transaction, and the (currently stubbed) verification verdict.
+
+No Blocky402 API key is required — the facilitator
+(`https://api.testnet.blocky402.com`) is open access.
 
 ## License
 
