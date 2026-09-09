@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@fastify/cors": "11.3.0",
     "@formdrop/shared": "workspace:*",
     "@privy-io/node": "0.34.0",
     "@x402/core": "2.25.0",

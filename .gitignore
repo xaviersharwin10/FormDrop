@@ -6,8 +6,10 @@ dist/
 build/
 .next/
 .turbo/
+next-env.d.ts
 *.log
 .DS_Store
+*.tsbuildinfo
 .clasp.json
 .clasprc.json
 coverage/

@@ -17,7 +17,11 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
-      "protobufjs"
+      "protobufjs",
+      "@reown/appkit",
+      "bufferutil",
+      "keccak",
+      "utf-8-validate"
     ]
   }
 }
