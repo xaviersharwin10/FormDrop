@@ -52,7 +52,7 @@ Verdict = APPROVE
 
 ```
 apps/
-  web/            Next.js — creator funding/dashboard + respondent claim page
+  web/            Next.js — creator console (live); respondent claim page (not yet built)
   apps-script/    Container-bound Google Apps Script (clasp-managed)
 services/
   resource-server/  Fastify — x402-gated verification service (the "service" being sold)
@@ -133,6 +133,19 @@ first receipt. See `specs/DECISIONS.md` for the full reasoning.
 paid 0.001 HBAR — Hedera auto-created account `0.0.10441626` for it. Check
 it on the Mirror Node:
 [api/v1/accounts/0xc24034467b7986d5daf89257911d1965020f422c](https://testnet.mirrornode.hedera.com/api/v1/accounts/0xc24034467b7986d5daf89257911d1965020f422c).
+
+### Creator console (apps/web)
+
+1. `cp apps/web/.env.local.example apps/web/.env.local` — set
+   `NEXT_PUBLIC_PRIVY_APP_ID` to the same Privy App ID used above (client-safe;
+   never put the App Secret in this app).
+2. With resource-server and orchestrator both running, `pnpm
+   --filter @formdrop/web dev` (listens on `:3000`).
+3. Log in (creates your creator embedded wallet), set a price per response
+   and max responses, then send testnet HBAR to the shown treasury account
+   and paste the transaction id to verify funding — checked against the
+   Mirror Node, not just taken on faith. The dashboard below polls
+   orchestrator's `/forms/:formId/stats` live.
 
 ## License
 

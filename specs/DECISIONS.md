@@ -147,6 +147,40 @@ Not yet wired: this is still a standalone spike, not called from the real
 claim flow (which doesn't exist yet — no claim email, no World ID gate, no
 `apps/web` claim page).
 
+## 2026-09-09 — apps/web scaffolded: creator console (Journey A)
+
+Next.js app, single page for now: Privy login (creates a real embedded
+wallet for the creator — literal "create at least one wallet" requirement,
+not just a login button), set price-per-response/max-responses, fund the
+pot, live polling dashboard.
+
+**Funding model, and why:** the creator's Privy wallet doesn't itself sign
+a Hedera transfer to fund the pot. Privy has no native Hedera signer, and
+building raw-transaction signing through Privy's generic sign API (construct
+the Hedera protobuf transaction, send its bytes to Privy for a raw secp256k1
+signature, reassemble and submit) is a real, solvable engineering task but a
+meaningfully bigger one than the time available justified this pass. Instead:
+the treasury is orchestrator's own Hedera operator account (the same one
+already used for x402 and payouts), the creator sends testnet HBAR to it
+however they already can (their own testnet account), and pastes the
+resulting transaction id — which the backend checks against the public
+Mirror Node before marking the form funded (`hederaMirror.ts`,
+`verifyIncomingHbarTransfer`). This keeps "funded and locked" a checkable
+fact, not a promise, without requiring Privy-signed Hedera transactions.
+Revisit if there's time: routing real fund custody through a Privy-signed
+transfer would be a stronger B2B-track story.
+
+**Bug found by testing, not assumed away:** the first version of
+`verifyIncomingHbarTransfer` only checked `transactions[0]` from the Mirror
+Node response. Tested against a real transaction from the Privy payout
+spike and it failed — turns out a single transaction id can resolve to
+*multiple* records (the real `CRYPTOTRANSFER` at nonce 0, plus a
+synthesized `CRYPTOCREATEACCOUNT` fee record at nonce 1 when the recipient
+is a fresh hollow account), and index `[0]` happened to be the wrong one.
+Fixed to check every record in the response; re-tested against the same
+real transaction (true) plus two deliberately-wrong cases (amount too
+high, wrong recipient — both correctly false).
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a
