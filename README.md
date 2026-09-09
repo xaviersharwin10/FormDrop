@@ -104,6 +104,12 @@ pnpm install
 No Blocky402 API key is required — the facilitator
 (`https://api.testnet.blocky402.com`) is open access.
 
+**Proof this works end to end:** transaction
+`0.0.7162784-1788964944-181581350` on Hedera testnet — a real x402 payment
+settled through Blocky402 for one verification call. Check it yourself on
+the public Mirror Node:
+[api/v1/transactions/0.0.7162784-1788964944-181581350](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1788964944-181581350).
+
 ## License
 
 TBD.
