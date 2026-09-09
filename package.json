@@ -1,15 +1,15 @@
 {
-  "name": "paid-forms",
+  "name": "formdrop",
   "private": true,
   "version": "0.1.0",
-  "description": "Paid Forms — a Google Forms add-on that pays respondents the instant they submit a valid response.",
+  "description": "FormDrop — a Google Forms add-on that pays respondents the instant they submit a valid response.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "dev:resource-server": "pnpm --filter @paid-forms/resource-server dev",
-    "dev:orchestrator": "pnpm --filter @paid-forms/orchestrator dev",
-    "dev:web": "pnpm --filter @paid-forms/web dev",
+    "dev:resource-server": "pnpm --filter @formdrop/resource-server dev",
+    "dev:orchestrator": "pnpm --filter @formdrop/orchestrator dev",
+    "dev:web": "pnpm --filter @formdrop/web dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck"

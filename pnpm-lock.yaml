@@ -16,7 +16,7 @@ importers:
 
   services/orchestrator:
     dependencies:
-      '@paid-forms/shared':
+      '@formdrop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@x402/core':
@@ -47,7 +47,7 @@ importers:
 
   services/resource-server:
     dependencies:
-      '@paid-forms/shared':
+      '@formdrop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@x402/core':

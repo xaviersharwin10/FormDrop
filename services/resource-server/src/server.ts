@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import { paymentMiddleware } from "@x402/fastify";
-import type { FormSubmissionPayload } from "@paid-forms/shared";
+import type { FormSubmissionPayload } from "@formdrop/shared";
 import { config } from "./config.js";
 import { HBAR_ASSET_ID, resourceServer } from "./x402.js";
 import { runVerification } from "./verify.js";

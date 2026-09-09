@@ -1,4 +1,4 @@
-# Paid Forms
+# FormDrop
 
 A Google Forms add-on that pays respondents the instant they submit a valid
 response. The form creator funds a payout pot; an AI agent judges response
@@ -97,7 +97,7 @@ pnpm install
 4. Start the resource server: `pnpm dev:resource-server` (listens on
    `:4001`).
 5. Prove one real x402 payment end to end: `pnpm --filter
-   @paid-forms/orchestrator spike`. Expect: a 402 challenge from the live
+   @formdrop/orchestrator spike`. Expect: a 402 challenge from the live
    Blocky402 facilitator on `hedera:testnet`, an automatic signed retry, a
    settled transaction, and the (currently stubbed) verification verdict.
 

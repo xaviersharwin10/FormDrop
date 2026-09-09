@@ -40,7 +40,7 @@ instead of only living in chat history.
 
 ## 2026-09-09 — Day-1 spike: real x402 payment settled on Hedera testnet
 
-Priority #1 from the build plan is done. `pnpm --filter @paid-forms/orchestrator spike`
+Priority #1 from the build plan is done. `pnpm --filter @formdrop/orchestrator spike`
 settles a real payment against the live Blocky402 facilitator
 (`https://api.testnet.blocky402.com`, no API key). Verified independently on
 the public Mirror Node — transaction `0.0.7162784-1788964944-181581350`,
@@ -69,6 +69,15 @@ public ETHOnline 2026 repo using the same facilitator: it can return
 the fix is checking the Hedera Mirror Node directly for a prior
 `CRYPTOTRANSFER SUCCESS` with the claimed transaction id before treating it
 as a real failure (payment success and delivery are different questions).
+
+## 2026-09-09 — Named the project FormDrop
+
+Working name in the brief was "Paid Forms" — literal but not distinctive.
+Renamed to **FormDrop** (forms + an instant payout "drop"): short, one word,
+easy to say in a 2-4 minute demo video, doesn't require explaining what it
+means. `specs/PROJECT_BRIEF.md` keeps the original wording throughout since
+it's the source planning artifact; everything else (package scope
+`@formdrop/*`, README, repo) uses the new name.
 
 ## Why two backend services instead of one
 

@@ -2,11 +2,11 @@
  * Day-1 spike: prove one real x402 payment settles end-to-end on Hedera
  * testnet via Blocky402, before building anything else on top of it.
  *
- * Run: pnpm --filter @paid-forms/orchestrator spike
+ * Run: pnpm --filter @formdrop/orchestrator spike
  * (requires services/resource-server running locally, and both services'
  * .env files filled in with real Hedera testnet credentials)
  */
-import type { FormSubmissionPayload, VerificationVerdict } from "@paid-forms/shared";
+import type { FormSubmissionPayload, VerificationVerdict } from "@formdrop/shared";
 import { config } from "./config.js";
 import { fetchWithPayment, httpClient } from "./x402Client.js";
 

@@ -1,5 +1,5 @@
 {
-  "name": "@paid-forms/orchestrator",
+  "name": "@formdrop/orchestrator",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@paid-forms/shared": "workspace:*",
+    "@formdrop/shared": "workspace:*",
     "@x402/core": "2.25.0",
     "@x402/fetch": "2.25.0",
     "@x402/hedera": "2.25.0",

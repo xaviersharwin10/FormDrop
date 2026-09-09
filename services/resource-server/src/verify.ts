@@ -1,4 +1,4 @@
-import type { FormSubmissionPayload, VerificationVerdict } from "@paid-forms/shared";
+import type { FormSubmissionPayload, VerificationVerdict } from "@formdrop/shared";
 
 /**
  * Stub verdict logic — always approves. Placeholder to prove the x402-gated
