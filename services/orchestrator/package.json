@@ -6,12 +6,15 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "spike": "tsx src/spike.ts",
+    "privy:setup-policy": "tsx src/privySetupPolicy.ts",
+    "privy:spike": "tsx src/privySpike.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@formdrop/shared": "workspace:*",
+    "@privy-io/node": "0.34.0",
     "@x402/core": "2.25.0",
     "@x402/fetch": "2.25.0",
     "@x402/hedera": "2.25.0",
