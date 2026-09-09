@@ -98,6 +98,55 @@ always approves), the Apps Script side hasn't been pointed at a real
 deployed orchestrator URL yet, and there's no claim email / HCS anchoring /
 Privy / World ID yet.
 
+## 2026-09-09 — Privy wallet provisioning + Hedera payout, proven end to end
+
+Journey B's core mechanic ("money lands via a Privy-provisioned embedded
+wallet tied to her email... never sees a seed phrase") is real, not just
+described. Key finding: **Privy has no native Hedera chain type** — it only
+issues `ethereum` / `solana` / etc. wallets. But Hedera accounts use the
+same secp256k1 curve as Ethereum, and Hedera supports auto-account-creation
+from an EVM address alias (HIP-583): sending HBAR to a `0x...` address
+that's never touched Hedera creates a "hollow" account for it automatically,
+which can only *receive* funds until it signs its own first outbound
+transaction. So a Privy `ethereum`-type embedded wallet's address is a
+directly usable Hedera payout destination — no bridging, no extra key
+material to manage.
+
+`services/orchestrator/src/privy.ts` provisions (or looks up, idempotently
+via a hashed-email `external_id`) a Privy wallet server-side — no wallet UI
+ever shown, matching the "she never creates a wallet manually" requirement
+literally, not just in spirit. `hederaPayout.ts` sends HBAR to that
+wallet's address via `AccountId.fromEvmAddress()` (from the same
+`@hiero-ledger/sdk` re-exported by `@x402/hedera` — no new Hedera dependency
+needed).
+
+Every respondent wallet gets a Privy **policy** attached at creation
+(`privySetupPolicy.ts`, run once, id in `.env`) that denies every wallet
+method by default (`method: "*"`, `action: "DENY"`, empty conditions —
+accepted by the API on the first try). This is the explicit "must use at
+least one Privy control" requirement for the B2B/financial-flow tracks,
+and it's substantive, not decorative: these wallets are provisioned with
+nobody present to authorize a spend, so locking them to receive-only is the
+actually-correct security posture, not just a box to check.
+
+Also note: `@privy-io/server-auth` is deprecated in favor of `@privy-io/node`
+— worth knowing since a lot of older Privy docs/examples still reference the
+old package. The importable client class is `PrivyClient` (not `PrivyAPI`,
+which is the lower-level generated client `PrivyClient` wraps), constructed
+with `{ appId, appSecret }` (camelCase `appId`), and its resource groups are
+accessed as methods — `.wallets()`, `.policies()` — not properties.
+
+Verified live: `pnpm privy:spike` provisioned a wallet
+(`0xc24034467b7986d5daf89257911d1965020f422c`) and paid it 0.001 HBAR.
+Confirmed independently on the Mirror Node — the payout transaction is a
+real `CRYPTOCREATEACCOUNT`, and the address now resolves to Hedera account
+`0.0.10441626` with a balance of exactly 100,000 tinybars and no key set
+(the "hollow" state HIP-583 describes).
+
+Not yet wired: this is still a standalone spike, not called from the real
+claim flow (which doesn't exist yet — no claim email, no World ID gate, no
+`apps/web` claim page).
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a

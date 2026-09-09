@@ -110,6 +110,30 @@ settled through Blocky402 for one verification call. Check it yourself on
 the public Mirror Node:
 [api/v1/transactions/0.0.7162784-1788964944-181581350](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1788964944-181581350).
 
+### Privy (respondent payout wallets)
+
+1. Create an app at [privy.io](https://privy.io) — free tier — and grab the
+   App ID and App Secret.
+2. Add `PRIVY_APP_ID` / `PRIVY_APP_SECRET` to
+   `services/orchestrator/.env`.
+3. Run once: `pnpm --filter @formdrop/orchestrator privy:setup-policy` —
+   creates the receive-only policy applied to every respondent wallet, and
+   prints a `PRIVY_RESPONDENT_POLICY_ID` to add to `.env`.
+4. Prove the payout path end to end: `pnpm --filter @formdrop/orchestrator
+   privy:spike` — provisions a Privy embedded wallet by email (no wallet UI)
+   and pays it real testnet HBAR.
+
+Privy has no native Hedera wallet type, so this uses Hedera's EVM-address
+auto-account-creation (HIP-583): a Privy `ethereum`-type wallet's address is
+paid directly, and Hedera creates a receive-only "hollow" account for it on
+first receipt. See `specs/DECISIONS.md` for the full reasoning.
+
+**Proof this works end to end:** Privy wallet
+`0xc24034467b7986d5daf89257911d1965020f422c` was provisioned by email and
+paid 0.001 HBAR — Hedera auto-created account `0.0.10441626` for it. Check
+it on the Mirror Node:
+[api/v1/accounts/0xc24034467b7986d5daf89257911d1965020f422c](https://testnet.mirrornode.hedera.com/api/v1/accounts/0xc24034467b7986d5daf89257911d1965020f422c).
+
 ## License
 
 TBD.
