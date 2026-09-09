@@ -20,4 +20,10 @@ export const config = {
   privyAppSecret: requireEnv("PRIVY_APP_SECRET"),
   /** Set once by `pnpm privy:setup-policy`, then pasted into .env. */
   privyRespondentPolicyId: process.env.PRIVY_RESPONDENT_POLICY_ID,
+
+  worldAppId: requireEnv("WORLD_APP_ID"),
+  worldRpId: requireEnv("WORLD_RP_ID"),
+  worldSigningKey: requireEnv("WORLD_SIGNING_KEY"),
+  /** "sandbox" while Selfie Check access is pending/being tested, "production" once live. */
+  worldEnvironment: (process.env.WORLD_ENVIRONMENT ?? "sandbox") as "production" | "staging" | "sandbox",
 };

@@ -3,9 +3,12 @@ import cors from "@fastify/cors";
 import { parseFormSubmissionPayload } from "./validate.js";
 import { handleFormSubmit } from "./webhook.js";
 import { getFormConfig, markFunded, setFormConfig } from "./formConfigStore.js";
-import { getResponsesForForm } from "./responseStore.js";
+import { getResponse, getResponsesForForm } from "./responseStore.js";
 import { verifyIncomingHbarTransfer } from "./hederaMirror.js";
 import { config } from "./config.js";
+import { claimAction, ClaimError, processClaim } from "./claim.js";
+import { getRpSignature } from "./world.js";
+import type { IdKitVerifyPayload } from "./world.js";
 
 export function buildServer() {
   const app = Fastify({ logger: true });
@@ -113,8 +116,44 @@ export function buildServer() {
     });
   });
 
-  // TODO (Day 3+): on APPROVE, send the claim email; anchor the verdict to
-  // HCS; wire the real LLM judgment into resource-server (currently stubbed).
+  app.get("/forms/:formId/responses/:responseId", async (request, reply) => {
+    const { formId, responseId } = request.params as { formId: string; responseId: string };
+    const response = getResponse(formId, responseId);
+    if (!response) {
+      return reply.status(404).send({ error: "response not found" });
+    }
+    return reply.send({
+      formId,
+      responseId,
+      decision: response.verdict.decision,
+      claimed: response.claimed,
+    });
+  });
+
+  app.post("/forms/:formId/world-rp-signature", async (request) => {
+    const { formId } = request.params as { formId: string };
+    const action = claimAction(formId);
+    return { ...getRpSignature(action), action };
+  });
+
+  app.post("/forms/:formId/responses/:responseId/claim", async (request, reply) => {
+    const { formId, responseId } = request.params as { formId: string; responseId: string };
+    const idkitResponse = request.body as IdKitVerifyPayload;
+
+    try {
+      const result = await processClaim(formId, responseId, idkitResponse);
+      return reply.send({ success: true, ...result });
+    } catch (err) {
+      if (err instanceof ClaimError) {
+        return reply.status(err.status).send({ error: err.message });
+      }
+      request.log.error(err, "processClaim failed");
+      return reply.status(500).send({ error: "claim failed" });
+    }
+  });
+
+  // TODO (Day 3+): send the claim email; anchor the verdict to HCS; wire
+  // the real LLM judgment into resource-server (currently stubbed).
 
   return app;
 }
