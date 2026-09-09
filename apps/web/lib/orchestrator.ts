@@ -54,6 +54,53 @@ export function getStats(formId: string) {
   );
 }
 
+export interface RpSignatureBundle {
+  app_id: `app_${string}`;
+  rp_id: string;
+  nonce: string;
+  created_at: number;
+  expires_at: number;
+  signature: string;
+  environment: "production" | "staging" | "sandbox";
+  action: string;
+}
+
+export interface ResponseStatus {
+  formId: string;
+  responseId: string;
+  decision: "APPROVE" | "REJECT";
+  claimed: boolean;
+}
+
+export interface ClaimResult {
+  success: true;
+  payoutTransactionId: string;
+  walletAddress: string;
+}
+
+export function getResponseStatus(formId: string, responseId: string) {
+  return fetch(
+    `${BASE_URL}/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(responseId)}`,
+  ).then((res) => asJson<ResponseStatus>(res));
+}
+
+export function getWorldRpSignature(formId: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/world-rp-signature`, {
+    method: "POST",
+  }).then((res) => asJson<RpSignatureBundle>(res));
+}
+
+export function submitClaim(formId: string, responseId: string, idkitResponse: unknown) {
+  return fetch(
+    `${BASE_URL}/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(responseId)}/claim`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(idkitResponse),
+    },
+  ).then((res) => asJson<ClaimResult>(res));
+}
+
 export function tinybarToHbar(tinybar: string): string {
   return (Number(BigInt(tinybar)) / 1e8).toString();
 }
