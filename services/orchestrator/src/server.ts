@@ -152,8 +152,7 @@ export function buildServer() {
     }
   });
 
-  // TODO (Day 3+): send the claim email; anchor the verdict to HCS; wire
-  // the real LLM judgment into resource-server (currently stubbed).
+  // TODO (Day 4+): anchor the verdict to HCS for a tamper-proof audit trail.
 
   return app;
 }

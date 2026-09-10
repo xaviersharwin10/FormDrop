@@ -26,4 +26,11 @@ export const config = {
   worldSigningKey: requireEnv("WORLD_SIGNING_KEY"),
   /** "sandbox" while Selfie Check access is pending/being tested, "production" once live. */
   worldEnvironment: (process.env.WORLD_ENVIRONMENT ?? "sandbox") as "production" | "staging" | "sandbox",
+
+  /** From resend.com/api-keys. */
+  resendApiKey: requireEnv("RESEND_API_KEY"),
+  /** resend.dev's shared test sender works with no domain verification; switch once a real domain is verified. */
+  claimEmailFrom: process.env.CLAIM_EMAIL_FROM ?? "FormDrop <onboarding@resend.dev>",
+  /** apps/web base URL — the claim link points here. */
+  webAppUrl: process.env.WEB_APP_URL ?? "http://localhost:3000",
 };

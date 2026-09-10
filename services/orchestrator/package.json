@@ -16,12 +16,13 @@
     "@fastify/cors": "11.3.0",
     "@formdrop/shared": "workspace:*",
     "@privy-io/node": "0.34.0",
+    "@worldcoin/idkit-server": "1.1.1",
     "@x402/core": "2.25.0",
     "@x402/fetch": "2.25.0",
-    "@worldcoin/idkit-server": "1.1.1",
     "@x402/hedera": "2.25.0",
     "dotenv": "^16.4.7",
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "resend": "^6.27.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

@@ -2,6 +2,7 @@ import type { FormSubmissionPayload, VerificationVerdict, VerifyRequestBody } fr
 import { config } from "./config.js";
 import { fetchWithPayment, httpClient } from "./x402Client.js";
 import { getResponsesForForm, recordResponse } from "./responseStore.js";
+import { sendClaimEmail } from "./email.js";
 
 export interface FormSubmitResult {
   verdict: VerificationVerdict;
@@ -46,6 +47,12 @@ export async function handleFormSubmit(payload: FormSubmissionPayload): Promise<
     x402TransactionId: settlement?.transaction ?? null,
     receivedAtIso: new Date().toISOString(),
   });
+
+  if (verdict.decision === "APPROVE") {
+    // Fire-and-forget: an email failure shouldn't fail a webhook whose
+    // payment already settled and whose verdict is already recorded.
+    sendClaimEmail(payload).catch((err) => console.error("sendClaimEmail threw:", err));
+  }
 
   return { verdict, x402TransactionId: settlement?.transaction ?? null };
 }
