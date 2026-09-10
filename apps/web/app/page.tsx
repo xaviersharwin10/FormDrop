@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   createFundingCheckoutSession,
   type FormStats,
+  type FundingAsset,
   getStats,
   getTreasuryAccountId,
   hbarToTinybar,
@@ -20,9 +21,14 @@ export default function CreatorConsole() {
   const [priceHbar, setPriceHbar] = useState("1");
   const [maxResponses, setMaxResponses] = useState(300);
   const [stats, setStats] = useState<FormStats | null>(null);
-  const [treasuryAccountId, setTreasuryAccountId] = useState<string | null>(null);
+  const [treasury, setTreasury] = useState<{
+    treasuryAccountId: string;
+    usdcTokenId: string;
+    usdCentsPerHbar: number;
+  } | null>(null);
   const [fundingTxId, setFundingTxId] = useState("");
   const [fundingMethod, setFundingMethod] = useState<"card" | "crypto">("card");
+  const [cryptoAsset, setCryptoAsset] = useState<FundingAsset>("HBAR");
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
@@ -52,8 +58,7 @@ export default function CreatorConsole() {
         maxResponses,
       });
       setStats(result);
-      const treasury = await getTreasuryAccountId(formId);
-      setTreasuryAccountId(treasury.treasuryAccountId);
+      setTreasury(await getTreasuryAccountId(formId));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -65,14 +70,14 @@ export default function CreatorConsole() {
     setVerifying(true);
     setError(null);
     try {
-      const result = await verifyFunding(formId, fundingTxId.trim());
+      const result = await verifyFunding(formId, fundingTxId.trim(), cryptoAsset);
       setStats(result);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setVerifying(false);
     }
-  }, [formId, fundingTxId]);
+  }, [formId, fundingTxId, cryptoAsset]);
 
   const handlePayWithCard = useCallback(async () => {
     setCheckingOut(true);
@@ -176,7 +181,7 @@ export default function CreatorConsole() {
                     className={fundingMethod === "crypto" ? "" : "secondary"}
                     onClick={() => setFundingMethod("crypto")}
                   >
-                    Send testnet HBAR myself
+                    Send crypto myself
                   </button>
                 </div>
 
@@ -192,10 +197,42 @@ export default function CreatorConsole() {
                   </>
                 ) : (
                   <>
-                    {treasuryAccountId && (
+                    <div className="tabs">
+                      <button
+                        className={cryptoAsset === "HBAR" ? "" : "secondary"}
+                        onClick={() => setCryptoAsset("HBAR")}
+                      >
+                        HBAR
+                      </button>
+                      <button
+                        className={cryptoAsset === "USDC" ? "" : "secondary"}
+                        onClick={() => setCryptoAsset("USDC")}
+                      >
+                        Testnet USDC
+                      </button>
+                    </div>
+
+                    {treasury && (
                       <>
-                        <p>Send testnet HBAR to:</p>
-                        <p className="mono">{treasuryAccountId}</p>
+                        <p>
+                          Send{" "}
+                          {cryptoAsset === "HBAR" ? (
+                            <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong>
+                          ) : (
+                            <strong>
+                              ${((Number(tinybarToHbar(stats.potTinybar)) * treasury.usdCentsPerHbar) / 100).toFixed(2)}{" "}
+                              worth of testnet USDC ({treasury.usdcTokenId})
+                            </strong>
+                          )}{" "}
+                          to:
+                        </p>
+                        <p className="mono">{treasury.treasuryAccountId}</p>
+                        {cryptoAsset === "USDC" && (
+                          <p className="hint">
+                            The treasury must be associated with this token to receive it — already done for
+                            the deployed treasury account.
+                          </p>
+                        )}
                       </>
                     )}
                     <label htmlFor="txId">Transaction ID (after sending)</label>

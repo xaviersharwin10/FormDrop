@@ -5,8 +5,13 @@ import { parseFormSubmissionPayload } from "./validate.js";
 import { handleFormSubmit } from "./webhook.js";
 import { getFormConfig, markFunded, setFormConfig } from "./formConfigStore.js";
 import { getResponse, getResponsesForForm } from "./responseStore.js";
-import { verifyIncomingHbarTransfer } from "./hederaMirror.js";
-import { createFundingCheckoutSession, constructWebhookEvent } from "./stripeFunding.js";
+import {
+  verifyIncomingHbarTransfer,
+  verifyIncomingTokenTransfer,
+  HEDERA_TESTNET_USDC_TOKEN_ID,
+  USDC_BASE_UNITS_PER_USD_CENT,
+} from "./hederaMirror.js";
+import { createFundingCheckoutSession, constructWebhookEvent, tinybarToUsdCents } from "./stripeFunding.js";
 import { config } from "./config.js";
 import { claimAction, ClaimError, processClaim } from "./claim.js";
 import { getRpSignature } from "./world.js";
@@ -79,11 +84,15 @@ export function buildServer() {
     return reply.send(config);
   });
 
-  app.get("/forms/:formId/treasury", async () => ({ treasuryAccountId: config.hederaAccountId }));
+  app.get("/forms/:formId/treasury", async () => ({
+    treasuryAccountId: config.hederaAccountId,
+    usdcTokenId: HEDERA_TESTNET_USDC_TOKEN_ID,
+    usdCentsPerHbar: config.usdCentsPerHbar,
+  }));
 
   app.post("/forms/:formId/verify-funding", async (request, reply) => {
     const { formId } = request.params as { formId: string };
-    const { transactionId } = request.body as Partial<{ transactionId: string }>;
+    const { transactionId, asset } = request.body as Partial<{ transactionId: string; asset: "HBAR" | "USDC" }>;
     const formConfig = getFormConfig(formId);
 
     if (!formConfig) {
@@ -94,12 +103,28 @@ export function buildServer() {
     }
 
     const potTinybar = BigInt(formConfig.pricePerResponseTinybar) * BigInt(formConfig.maxResponses);
-    const verified = await verifyIncomingHbarTransfer(transactionId, config.hederaAccountId, potTinybar);
 
-    if (!verified) {
-      return reply.status(422).send({
-        error: `Mirror Node doesn't show a transfer of at least ${potTinybar} tinybars to ${config.hederaAccountId} for that transaction id`,
-      });
+    let verified: boolean;
+    if (asset === "USDC") {
+      const minUsdcBaseUnits = BigInt(tinybarToUsdCents(potTinybar.toString())) * USDC_BASE_UNITS_PER_USD_CENT;
+      verified = await verifyIncomingTokenTransfer(
+        transactionId,
+        config.hederaAccountId,
+        HEDERA_TESTNET_USDC_TOKEN_ID,
+        minUsdcBaseUnits,
+      );
+      if (!verified) {
+        return reply.status(422).send({
+          error: `Mirror Node doesn't show a testnet USDC transfer of at least ${minUsdcBaseUnits} base units to ${config.hederaAccountId} for that transaction id`,
+        });
+      }
+    } else {
+      verified = await verifyIncomingHbarTransfer(transactionId, config.hederaAccountId, potTinybar);
+      if (!verified) {
+        return reply.status(422).send({
+          error: `Mirror Node doesn't show a transfer of at least ${potTinybar} tinybars to ${config.hederaAccountId} for that transaction id`,
+        });
+      }
     }
 
     const updated = markFunded(formId, transactionId);

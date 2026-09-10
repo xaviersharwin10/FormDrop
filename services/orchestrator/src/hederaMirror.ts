@@ -1,5 +1,9 @@
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com";
 
+export const HEDERA_TESTNET_USDC_TOKEN_ID = "0.0.429274";
+/** Testnet USDC has 6 decimals; 1 USD cent = 10,000 base units. */
+export const USDC_BASE_UNITS_PER_USD_CENT = 10_000n;
+
 /** Mirror Node path form: 0.0.x-seconds-nanos (SDK gives 0.0.x@seconds.nanos). */
 function toMirrorTransactionId(transactionId: string): string {
   return transactionId.replace("@", "-").replace(/\.(\d+)$/, "-$1");
@@ -37,6 +41,39 @@ export async function verifyIncomingHbarTransfer(
     if (tx.result !== "SUCCESS") continue;
     const credited = tx.transfers.find((t) => t.account === expectedToAccountId);
     if (credited !== undefined && BigInt(credited.amount) >= minAmountTinybar) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Same independent-verification approach as verifyIncomingHbarTransfer,
+ * for HTS token transfers (e.g. testnet USDC) — the "or crypto in" funding
+ * path isn't limited to native HBAR.
+ */
+export async function verifyIncomingTokenTransfer(
+  transactionId: string,
+  expectedToAccountId: string,
+  tokenId: string,
+  minAmount: bigint,
+): Promise<boolean> {
+  const res = await fetch(
+    `${MIRROR_NODE_BASE}/api/v1/transactions/${encodeURIComponent(toMirrorTransactionId(transactionId))}`,
+  );
+  if (!res.ok) return false;
+
+  const data = (await res.json()) as {
+    transactions?: Array<{
+      result: string;
+      token_transfers: Array<{ token_id: string; account: string; amount: number }>;
+    }>;
+  };
+
+  for (const tx of data.transactions ?? []) {
+    if (tx.result !== "SUCCESS") continue;
+    const credited = tx.token_transfers.find((t) => t.token_id === tokenId && t.account === expectedToAccountId);
+    if (credited !== undefined && BigInt(credited.amount) >= minAmount) {
       return true;
     }
   }

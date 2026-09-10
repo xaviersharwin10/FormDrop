@@ -9,6 +9,7 @@
     "privy:setup-policy": "tsx src/privySetupPolicy.ts",
     "privy:spike": "tsx src/privySpike.ts",
     "hcs:setup-topic": "tsx src/hcsSetupTopic.ts",
+    "hedera:associate-usdc": "tsx src/hederaAssociateUsdc.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"

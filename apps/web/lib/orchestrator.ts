@@ -36,15 +36,17 @@ export function saveFormConfig(input: {
 
 export function getTreasuryAccountId(formId: string) {
   return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/treasury`).then((res) =>
-    asJson<{ treasuryAccountId: string }>(res),
+    asJson<{ treasuryAccountId: string; usdcTokenId: string; usdCentsPerHbar: number }>(res),
   );
 }
 
-export function verifyFunding(formId: string, transactionId: string) {
+export type FundingAsset = "HBAR" | "USDC";
+
+export function verifyFunding(formId: string, transactionId: string, asset: FundingAsset) {
   return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/verify-funding`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transactionId }),
+    body: JSON.stringify({ transactionId, asset }),
   }).then((res) => asJson<FormStats>(res));
 }
 
