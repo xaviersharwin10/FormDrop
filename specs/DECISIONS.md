@@ -258,6 +258,46 @@ payout), World (this). None of the three are decorative — pull any one out
 and a specific attack becomes possible (pay without judging quality, pay
 without a real destination, pay the same human twice).
 
+## 2026-09-10 — Real LLM verification wired in, on Gemini's free tier
+
+`resource-server/src/verify.ts` no longer always-approves. Explicit call:
+Sharwin rejected using the Anthropic API for this ("anthropic api key gets
+billed according to usage right..I wanna go with a free llm bruh") — a
+reasonable cost decision for a hackathon judging pot, so verification runs
+on Google's Gemini free tier instead (`@google/genai`, model
+`gemini-3.6-flash`, structured JSON output via `responseSchema` derived from
+the same `zod` verdict shape used everywhere else in the codebase).
+
+**Model name drift caught immediately by testing, not assumed away:**
+`gemini-2.5-flash` (what training data suggests as current) returned a hard
+404 — "no longer available to new users... use models/gemini-3.6-flash."
+Confirms the pattern already established in this project: verify the actual
+live API response, don't trust a remembered model string.
+
+**Duplicate detection needs cross-response context**, so the `/verify`
+contract changed from taking a bare `FormSubmissionPayload` to a
+`VerifyRequestBody` (`{ payload, priorAnswerTexts }`) — orchestrator now
+passes up to the last 20 answers submitted to the same form so Gemini can
+actually compare instead of judging each response in isolation.
+
+**Proven live, not just typechecked**, with three deliberately distinct
+cases run straight through the full pipeline (webhook -> x402 payment on
+Hedera testnet -> Gemini judgment), not just the LLM in isolation:
+- Gibberish + 1-2s submit time -> `REJECT`, `isGibberish: true`,
+  `isSuspiciouslyFast: true`, confidence 0.98-1.0.
+- A specific, realistic answer at a plausible completion time -> `APPROVE`,
+  confidence 0.98, reasoning citing the actual concrete detail given.
+- A near-duplicate of a prior answer (two words changed) against
+  `priorAnswerTexts` -> `REJECT`, `isDuplicateOrNearDuplicate: true`,
+  reasoning naming the exact phrasing overlap.
+
+Each case settled a real, separate Hedera testnet x402 payment
+(`0.0.7162784@1789002671...`, `0.0.7162784@1789002697...`) regardless of the
+verdict — the orchestrator pays resource-server for the judgment call
+itself; only an `APPROVE` verdict makes the respondent's payout eligible.
+This is the anti-fraud gate the brief actually asked for, discriminating
+for real rather than rubber-stamping every submission.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a

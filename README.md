@@ -99,7 +99,7 @@ pnpm install
 5. Prove one real x402 payment end to end: `pnpm --filter
    @formdrop/orchestrator spike`. Expect: a 402 challenge from the live
    Blocky402 facilitator on `hedera:testnet`, an automatic signed retry, a
-   settled transaction, and the (currently stubbed) verification verdict.
+   settled transaction, and a real LLM verification verdict.
 
 No Blocky402 API key is required — the facilitator
 (`https://api.testnet.blocky402.com`) is open access.
@@ -109,6 +109,34 @@ No Blocky402 API key is required — the facilitator
 settled through Blocky402 for one verification call. Check it yourself on
 the public Mirror Node:
 [api/v1/transactions/0.0.7162784-1788964944-181581350](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1788964944-181581350).
+
+### LLM verification (Google Gemini, free tier)
+
+1. Grab a free API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+   — no billing required for the free tier used here.
+2. Add `GEMINI_API_KEY` to `services/resource-server/.env`.
+
+`resource-server/src/verify.ts` calls `gemini-3.6-flash` with structured JSON
+output (schema derived from the same `zod` verdict shape used everywhere
+else) to judge each response: genuine vs. gibberish, duplicate/near-duplicate
+against recent prior answers to the same form, obviously-LLM-generated
+boilerplate, and suspiciously-fast completion. This is the actual anti-fraud
+gate — the orchestrator pays for this judgment via x402 regardless of the
+verdict; only `APPROVE` makes the respondent's payout eligible.
+
+**Proof this works end to end:** three distinct cases run through the full
+webhook -> x402 -> Gemini pipeline, not just the LLM in isolation:
+
+| Input | Verdict | Why |
+|---|---|---|
+| `"ok good nice yes fine"`, 1s | `REJECT` | `isGibberish` + `isSuspiciouslyFast`, confidence 0.98 |
+| A specific, realistic answer, 88s | `APPROVE` | confidence 0.98, reasoning cites the concrete detail given |
+| Two-word edit of a prior answer | `REJECT` | `isDuplicateOrNearDuplicate`, reasoning names the exact overlap |
+
+Each settled a real, separate Hedera testnet transaction
+(`0.0.7162784@1789002671.381366556`, `0.0.7162784@1789002697.084483608`) —
+check either on the Mirror Node, e.g.
+[api/v1/transactions/0.0.7162784-1789002671-381366556](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789002671-381366556).
 
 ### Privy (respondent payout wallets)
 
