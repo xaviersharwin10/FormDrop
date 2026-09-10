@@ -1,10 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import type Stripe from "stripe";
 import { parseFormSubmissionPayload } from "./validate.js";
 import { handleFormSubmit } from "./webhook.js";
 import { getFormConfig, markFunded, setFormConfig } from "./formConfigStore.js";
 import { getResponse, getResponsesForForm } from "./responseStore.js";
 import { verifyIncomingHbarTransfer } from "./hederaMirror.js";
+import { createFundingCheckoutSession, constructWebhookEvent } from "./stripeFunding.js";
 import { config } from "./config.js";
 import { claimAction, ClaimError, processClaim } from "./claim.js";
 import { getRpSignature } from "./world.js";
@@ -14,6 +16,22 @@ export function buildServer() {
   const app = Fastify({ logger: true });
 
   app.register(cors, { origin: true });
+
+  // Overrides Fastify's default JSON parser to also stash the raw request
+  // bytes — Stripe's webhook signature check needs the exact raw body,
+  // which is no longer available once something has JSON.parse'd it.
+  app.addContentTypeParser("application/json", { parseAs: "buffer" }, (request, body, done) => {
+    request.rawBody = body as Buffer;
+    if (body.length === 0) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse((body as Buffer).toString("utf8")));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -86,6 +104,57 @@ export function buildServer() {
 
     const updated = markFunded(formId, transactionId);
     return reply.send(updated);
+  });
+
+  app.post("/forms/:formId/fund/checkout-session", async (request, reply) => {
+    const { formId } = request.params as { formId: string };
+    const formConfig = getFormConfig(formId);
+    if (!formConfig) {
+      return reply.status(404).send({ error: "form not configured yet" });
+    }
+    if (formConfig.funded) {
+      return reply.status(409).send({ error: "form is already funded" });
+    }
+
+    const { successUrl, cancelUrl } = request.body as Partial<{ successUrl: string; cancelUrl: string }>;
+    if (typeof successUrl !== "string" || typeof cancelUrl !== "string") {
+      return reply.status(400).send({ error: "successUrl and cancelUrl are required" });
+    }
+
+    const potTinybar = (BigInt(formConfig.pricePerResponseTinybar) * BigInt(formConfig.maxResponses)).toString();
+
+    try {
+      const url = await createFundingCheckoutSession(formId, potTinybar, successUrl, cancelUrl);
+      return reply.send({ url });
+    } catch (err) {
+      request.log.error(err, "createFundingCheckoutSession failed");
+      return reply.status(502).send({ error: (err as Error).message });
+    }
+  });
+
+  app.post("/webhooks/stripe", async (request, reply) => {
+    const signature = request.headers["stripe-signature"];
+    if (typeof signature !== "string" || !request.rawBody) {
+      return reply.status(400).send({ error: "missing stripe-signature header or raw body" });
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = constructWebhookEvent(request.rawBody, signature);
+    } catch (err) {
+      request.log.error(err, "Stripe webhook signature verification failed");
+      return reply.status(400).send({ error: "invalid signature" });
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const formId = session.metadata?.formId;
+      if (formId && session.payment_status === "paid") {
+        markFunded(formId, `stripe:${session.id}`);
+      }
+    }
+
+    return reply.send({ received: true });
   });
 
   app.get("/forms/:formId/stats", async (request, reply) => {

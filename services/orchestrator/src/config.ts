@@ -36,4 +36,15 @@ export const config = {
 
   /** Set once by `pnpm hcs:setup-topic`, then pasted into .env. */
   hcsAuditTopicId: process.env.HCS_AUDIT_TOPIC_ID,
+
+  /** Test-mode secret key from dashboard.stripe.com/test/apikeys — no billing needed. */
+  stripeSecretKey: requireEnv("STRIPE_SECRET_KEY"),
+  /** From the webhook endpoint's signing secret (dashboard, or `stripe listen`'s printed secret while developing). */
+  stripeWebhookSecret: requireEnv("STRIPE_WEBHOOK_SECRET"),
+  /**
+   * Nominal USD-cents-per-HBAR peg used only to price the card-funding
+   * checkout — testnet HBAR has no real value, so this exists purely to
+   * make "pay with a card" a coherent amount to charge. Not a real exchange rate.
+   */
+  usdCentsPerHbar: Number(process.env.USD_CENTS_PER_HBAR ?? 100),
 };

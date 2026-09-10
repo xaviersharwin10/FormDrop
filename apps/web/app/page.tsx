@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import {
+  createFundingCheckoutSession,
   type FormStats,
   getStats,
   getTreasuryAccountId,
@@ -21,8 +22,10 @@ export default function CreatorConsole() {
   const [stats, setStats] = useState<FormStats | null>(null);
   const [treasuryAccountId, setTreasuryAccountId] = useState<string | null>(null);
   const [fundingTxId, setFundingTxId] = useState("");
+  const [fundingMethod, setFundingMethod] = useState<"card" | "crypto">("card");
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshStats = useCallback(async (id: string) => {
@@ -70,6 +73,25 @@ export default function CreatorConsole() {
       setVerifying(false);
     }
   }, [formId, fundingTxId]);
+
+  const handlePayWithCard = useCallback(async () => {
+    setCheckingOut(true);
+    setError(null);
+    try {
+      const returnUrl = window.location.href.split("?")[0];
+      const { url } = await createFundingCheckoutSession(formId, `${returnUrl}?funded=1`, returnUrl);
+      window.location.href = url;
+    } catch (err) {
+      setError((err as Error).message);
+      setCheckingOut(false);
+    }
+  }, [formId]);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("funded") === "1" && formId) {
+      refreshStats(formId);
+    }
+  }, [formId, refreshStats]);
 
   return (
     <main>
@@ -141,24 +163,53 @@ export default function CreatorConsole() {
               Pot needed: <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> ({stats.maxResponses}{" "}
               responses × {tinybarToHbar(stats.pricePerResponseTinybar)} HBAR)
             </p>
-            {treasuryAccountId && (
-              <>
-                <p>Send testnet HBAR to:</p>
-                <p className="mono">{treasuryAccountId}</p>
-              </>
-            )}
             {!stats.funded ? (
               <>
-                <label htmlFor="txId">Transaction ID (after sending)</label>
-                <input
-                  id="txId"
-                  placeholder="0.0.xxxxx@1234567890.123456789"
-                  value={fundingTxId}
-                  onChange={(e) => setFundingTxId(e.target.value)}
-                />
-                <button onClick={handleVerifyFunding} disabled={verifying || !fundingTxId}>
-                  {verifying ? "Checking Mirror Node…" : "Verify funding"}
-                </button>
+                <div className="tabs">
+                  <button
+                    className={fundingMethod === "card" ? "" : "secondary"}
+                    onClick={() => setFundingMethod("card")}
+                  >
+                    Pay with card
+                  </button>
+                  <button
+                    className={fundingMethod === "crypto" ? "" : "secondary"}
+                    onClick={() => setFundingMethod("crypto")}
+                  >
+                    Send testnet HBAR myself
+                  </button>
+                </div>
+
+                {fundingMethod === "card" ? (
+                  <>
+                    <p className="hint">
+                      Stripe test-mode checkout — no real charge. The exact USD amount (a nominal peg,
+                      since testnet HBAR has no real value) is shown on the next screen.
+                    </p>
+                    <button onClick={handlePayWithCard} disabled={checkingOut}>
+                      {checkingOut ? "Redirecting to checkout…" : "Pay with card"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {treasuryAccountId && (
+                      <>
+                        <p>Send testnet HBAR to:</p>
+                        <p className="mono">{treasuryAccountId}</p>
+                      </>
+                    )}
+                    <label htmlFor="txId">Transaction ID (after sending)</label>
+                    <input
+                      id="txId"
+                      placeholder="0.0.xxxxx@1234567890.123456789"
+                      value={fundingTxId}
+                      onChange={(e) => setFundingTxId(e.target.value)}
+                    />
+                    <button onClick={handleVerifyFunding} disabled={verifying || !fundingTxId}>
+                      {verifying ? "Checking Mirror Node…" : "Verify funding"}
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <p className="hint mono">tx: {stats.fundingTransactionId}</p>

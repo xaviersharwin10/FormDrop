@@ -48,6 +48,14 @@ export function verifyFunding(formId: string, transactionId: string) {
   }).then((res) => asJson<FormStats>(res));
 }
 
+export function createFundingCheckoutSession(formId: string, successUrl: string, cancelUrl: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/fund/checkout-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ successUrl, cancelUrl }),
+  }).then((res) => asJson<{ url: string }>(res));
+}
+
 export function getStats(formId: string) {
   return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/stats`).then((res) =>
     asJson<FormStats>(res),
