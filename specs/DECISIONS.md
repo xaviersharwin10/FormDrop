@@ -324,6 +324,42 @@ testnet (`0.0.7162784@1789004592.568918146`, confirmed on the Mirror Node)
 → real Gemini `APPROVE` → a real email landed in a Gmail inbox with a
 claim link containing the correct `formId`/`responseId`.
 
+## 2026-09-10 — HCS anchoring: verification verdicts are now a public, tamper-proof audit trail
+
+Closes Hedera's "verifiable payment audit trails on HCS" extra-credit item.
+`services/orchestrator/src/hcs.ts` submits one message per verification
+call to a dedicated HCS topic — `formId`, `responseId`, a SHA-256 hash of
+the response payload (not the raw payload — keeps respondent PII off a
+public ledger while still letting anyone with the original payload re-hash
+and confirm a match), the full verdict, and the x402 payment transaction id
+that paid for the judgment call.
+
+**Topic created with no admin/submit key, deliberately.** This is meant to
+be an independently-checkable public record, not a gated one — a judge (or
+anyone) can query the Mirror Node directly and decode a message without
+needing any of our keys. One-time setup via `pnpm hcs:setup-topic`
+(mirrors the `privy:setup-policy` pattern), topic id pasted into `.env`.
+
+**Every response gets anchored, not just approvals** — this is an audit
+trail of the verification *process* (what was judged, how, and what paid
+for it), matching the track's literal "payment audit trails," since
+resource-server gets paid via x402 for the judgment call regardless of
+its outcome.
+
+**Fire-and-forget, same reasoning as the claim email:** anchoring happens
+after the response is already recorded and (if approved) the claim email
+already queued — an HCS failure must never turn an already-settled payment
+into a webhook error. The resulting `hcsTransactionId`/`hcsSequenceNumber`
+get attached to the stored response asynchronously and exposed via
+`GET /forms/:formId/responses/:responseId` for the demo.
+
+Proven live, independently, not just via our own endpoint: submitted a
+real webhook request, then fetched the message straight from the public
+Mirror Node (`/api/v1/topics/0.0.10460886/messages/1`) and base64-decoded
+it — the decoded JSON is the exact audit record, byte for byte, including
+the real Gemini reasoning text and the real x402 transaction id from the
+same request.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a

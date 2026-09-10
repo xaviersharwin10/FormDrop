@@ -159,6 +159,27 @@ successful paid verification into a webhook failure.
 → a real Gemini `APPROVE` → a real email landed in a Gmail inbox with a
 working claim link for that exact `formId`/`responseId`.
 
+### HCS audit trail (verification verdicts, verifiable on-chain)
+
+1. Run once: `pnpm --filter @formdrop/orchestrator hcs:setup-topic` —
+   creates the public HCS topic and prints a `HCS_AUDIT_TOPIC_ID` to add to
+   `services/orchestrator/.env`.
+
+Every verification call anchors a message to this topic: `formId`,
+`responseId`, a SHA-256 hash of the response payload (not the raw payload —
+keeps respondent PII off a public ledger), the full verdict, and the x402
+transaction id that paid for the judgment. The topic has no admin/submit
+key — anyone, including a judge, can query it directly on the Mirror Node
+with no keys of ours required.
+
+**Proof this works end to end:** topic
+[`0.0.10460886`](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10460886),
+message 1 — fetched straight from the Mirror Node and base64-decoded:
+[api/v1/topics/0.0.10460886/messages/1](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10460886/messages/1).
+The decoded content is the exact audit record from a real webhook request,
+including the real Gemini reasoning text and the real x402 payment
+transaction id.
+
 ### Privy (respondent payout wallets)
 
 1. Create an app at [privy.io](https://privy.io) — free tier — and grab the
