@@ -227,6 +227,37 @@ the whole platform" reading, which would be wrong for a real product.
   environment. `WORLD_ENVIRONMENT=sandbox` is set so it's ready the moment
   access is confirmed.
 
+## 2026-09-10 — Full Loop 2, proven live with a real human and a real device
+
+Selfie Check is enabled for this app — confirmed by actually doing it, not
+by asking World. Sharwin installed the sandbox app on an Android phone,
+opened the claim page in a desktop browser, scanned the resulting QR code,
+completed a real Selfie Check, and the page showed a paid wallet and
+transaction id.
+
+Independently confirmed on the Mirror Node: a real `CRYPTOTRANSFER`,
+100,000 tinybars, from the orchestrator's operating account to
+`0.0.10442744` — a fresh hollow account for the Privy-provisioned wallet,
+no key set, exactly the receive-only state HIP-583 describes. This is the
+first real (not synthetic/negative-test) pass through every piece of Loop
+2 at once: World's actual verification API accepted a real proof, the
+nullifier got recorded, Privy provisioned the wallet, Hedera paid it.
+
+Also confirmed: re-attempting the claim on the same response is correctly
+rejected (`"already claimed"`, the cheap guard that runs before even
+touching World's API). The other guard — the same nullifier reused on a
+*different* response, simulating one human resubmitting under a second
+fake email — shares the identical code path and was verified earlier with
+direct unit tests against real Mirror Node data, but wasn't re-exercised
+with a second physical Selfie Check scan; noted honestly rather than
+claimed as separately proven.
+
+All three sponsor integrations now have a genuine, live, on-chain-verified
+proof point: Hedera (x402 payment, twice), Privy (wallet provisioning +
+payout), World (this). None of the three are decorative — pull any one out
+and a specific attack becomes possible (pay without judging quality, pay
+without a real destination, pay the same human twice).
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a

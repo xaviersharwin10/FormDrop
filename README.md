@@ -161,13 +161,15 @@ it on the Mirror Node:
 4. The respondent claim page lives at `apps/web`'s `/claim?formId=<id>&responseId=<id>`
    — reachable once a response has been APPROVE'd through the webhook path.
 
-**Proof this works end to end (as much as is testable without a physical
-device):** RP-signature generation is real local signing, verified live.
-A claim attempt with a deliberately invalid proof correctly round-trips to
-World's real `v4/verify` endpoint and gets rejected — confirming the
-`rp_id` and plumbing are correct independent of whether Selfie Check
-access has been granted yet. A real successful claim needs that access
-grant plus someone completing Selfie Check on the sandbox app.
+**Proof this works end to end:** done for real, on a physical device.
+Sandbox app installed on Android, claim page opened in a browser, QR code
+scanned, a real Selfie Check completed — the claim page showed a paid
+wallet and transaction id. Independently confirmed on the Mirror Node:
+wallet `0xF74850796781F2333D60aE8Ec0CD577c80891576` resolved to Hedera
+account `0.0.10442744`, credited 100,000 tinybars via a real
+`CRYPTOTRANSFER`:
+[api/v1/accounts/0xf74850796781f2333d60ae8ec0cd577c80891576](https://testnet.mirrornode.hedera.com/api/v1/accounts/0xf74850796781f2333d60ae8ec0cd577c80891576).
+Re-claiming the same response is correctly rejected (`"already claimed"`).
 
 ## License
 
