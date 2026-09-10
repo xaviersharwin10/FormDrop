@@ -298,6 +298,33 @@ itself; only an `APPROVE` verdict makes the respondent's payout eligible.
 This is the anti-fraud gate the brief actually asked for, discriminating
 for real rather than rubber-stamping every submission.
 
+## 2026-09-10 — Claim email sent automatically on APPROVE, via Resend
+
+The last silent gap in Loop 2 closed: previously an `APPROVE` verdict just
+sat in `responseStore` with nobody told the claim link exists. Now
+`webhook.ts` fires `sendClaimEmail` (fire-and-forget, `services/orchestrator/src/email.ts`)
+the moment a response is recorded as `APPROVE`.
+
+**Resend, on its shared test sender, needs no domain verification to send
+to arbitrary recipients** — confirmed by testing, not assumed from a
+WebFetch summary (Resend's own docs pages didn't actually state this either
+way when checked). `onboarding@resend.dev` as the `from` address delivered
+successfully to a real Gmail inbox with zero setup beyond an API key.
+`CLAIM_EMAIL_FROM` is a config var specifically so this swaps to a verified
+custom domain later without a code change.
+
+**Deliberately fire-and-forget, not awaited into the response:** the x402
+payment has already settled and the verdict is already recorded by the
+time the email send is attempted — a bounced or slow email must never turn
+a successful paid verification into a 5xx to the Apps Script webhook
+caller. Errors are logged, not thrown.
+
+Proven live end to end, not just as an isolated function call: a real
+webhook POST with a genuine answer → real x402 settlement on Hedera
+testnet (`0.0.7162784@1789004592.568918146`, confirmed on the Mirror Node)
+→ real Gemini `APPROVE` → a real email landed in a Gmail inbox with a
+claim link containing the correct `formId`/`responseId`.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a

@@ -138,6 +138,27 @@ Each settled a real, separate Hedera testnet transaction
 check either on the Mirror Node, e.g.
 [api/v1/transactions/0.0.7162784-1789002671-381366556](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789002671-381366556).
 
+### Claim email (Resend)
+
+1. Grab a free API key at [resend.com/api-keys](https://resend.com/api-keys)
+   — no domain verification needed to start; the shared `onboarding@resend.dev`
+   sender works for any recipient.
+2. Add `RESEND_API_KEY` to `services/orchestrator/.env`. Optionally set
+   `CLAIM_EMAIL_FROM` (once a custom domain is verified) and `WEB_APP_URL`
+   (defaults to `http://localhost:3000`).
+
+The moment `handleFormSubmit` records an `APPROVE` verdict, it fires an
+email (`services/orchestrator/src/email.ts`) containing the respondent's
+claim link — fire-and-forget, so a slow or bounced email can never turn a
+successful paid verification into a webhook failure.
+
+**Proof this works end to end:** a real webhook POST with a genuine answer
+→ a real x402 payment settled on Hedera testnet
+(`0.0.7162784@1789004592.568918146` — check it on the
+[Mirror Node](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789004592-568918146))
+→ a real Gemini `APPROVE` → a real email landed in a Gmail inbox with a
+working claim link for that exact `formId`/`responseId`.
+
 ### Privy (respondent payout wallets)
 
 1. Create an app at [privy.io](https://privy.io) — free tier — and grab the
