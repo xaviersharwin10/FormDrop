@@ -72,12 +72,11 @@ as a real failure (payment success and delivery are different questions).
 
 ## 2026-09-09 — Named the project FormDrop
 
-Working name in the brief was "Paid Forms" — literal but not distinctive.
-Renamed to **FormDrop** (forms + an instant payout "drop"): short, one word,
-easy to say in a 2-4 minute demo video, doesn't require explaining what it
-means. `specs/PROJECT_BRIEF.md` keeps the original wording throughout since
-it's the source planning artifact; everything else (package scope
-`@formdrop/*`, README, repo) uses the new name.
+Working name in initial planning was "Paid Forms" — literal but not
+distinctive. Renamed to **FormDrop** (forms + an instant payout "drop"):
+short, one word, easy to say in a 2-4 minute demo video, doesn't require
+explaining what it means. Package scope (`@formdrop/*`), README, and repo
+all use the new name.
 
 ## 2026-09-09 — Day-2 (partial): real webhook -> paid verification path
 

@@ -9,8 +9,8 @@ Built for [ETHOnline 2026](https://ethglobal.com/events/ethonline2026).
 
 > Status: early scaffold, actively being built. This README will grow to
 > cover full setup, architecture, and the payment flow as pieces land — see
-> `specs/DECISIONS.md` for the planning log and `specs/PROJECT_BRIEF.md` for
-> the full project brief.
+> `specs/DECISIONS.md` for the planning log and `specs/PROJECT.md` for the
+> full project description.
 
 ## Why this, why Web3
 
