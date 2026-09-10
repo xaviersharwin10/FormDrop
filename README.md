@@ -219,10 +219,11 @@ it on the Mirror Node:
      funded; the treasury (still the orchestrator's own Hedera operator
      account) is what actually pays respondents out in testnet HBAR. See
      the Stripe setup section below.
-   - **Send testnet HBAR yourself** — for anyone who already holds
-     testnet HBAR: send it to the shown treasury account and paste the
-     transaction id, checked against the Mirror Node, not just taken on
-     faith.
+   - **Send crypto yourself** — for anyone who already holds crypto:
+     native testnet HBAR, or testnet USDC if they'd rather not hold a
+     volatile-priced asset. Send it to the shown treasury account and
+     paste the transaction id, checked against the Mirror Node, not just
+     taken on faith.
    The dashboard below polls orchestrator's `/forms/:formId/stats` live.
 
 ### Card funding (Stripe, test mode)
@@ -250,6 +251,27 @@ yet for a live redirect) — it correctly marked the form funded
 (`fundingTransactionId: "stripe:cs_test_..."`) — and a forged signature was
 independently confirmed to be rejected (`400 invalid signature`), proving
 the check is real, not decorative.
+
+### Stablecoin crypto funding (testnet USDC)
+
+Alongside native HBAR, the "send crypto yourself" path also accepts
+testnet USDC (`0.0.429274`) — for creators who'd rather fund with a
+stable-priced asset than native HBAR. Requires a one-time association so
+the treasury account can receive it: `pnpm --filter @formdrop/orchestrator
+hedera:associate-usdc`.
+
+**Proof this works end to end:** the association transaction is real,
+independently confirmed on the Mirror Node before (not associated) and
+after (associated, 0 balance). The verification logic
+(`verifyIncomingTokenTransfer`) was tested against a real, independent
+USDC transfer already on testnet — exact match, amount-too-high,
+wrong-recipient, and wrong-token-id cases all resolved correctly — and the
+live HTTP route (`POST /forms/:formId/verify-funding` with `"asset":
+"USDC"`) was exercised the same way, correctly returning a 422 with the
+exact computed minimum required. Not yet exercised: an actual USDC
+transfer landing in the treasury itself, since that needs testnet USDC in
+hand (Circle's faucet requires signing up for a separate account, not done
+without asking first) — noted honestly rather than claimed as proven.
 
 ### World ID (Selfie Check on claim)
 

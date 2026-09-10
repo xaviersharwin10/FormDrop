@@ -409,6 +409,54 @@ webhook-handling halves are both proven; the middle (Stripe's own hosted
 UI) is Stripe's product, not ours, so lower-risk to leave unexercised for
 now.
 
+## 2026-09-10 — Stablecoin (testnet USDC) support added to the crypto-funding path
+
+Extends the existing "send testnet HBAR myself" funding path to also
+accept testnet USDC — not every creator who already holds crypto wants to
+hold volatile-priced native HBAR specifically; a stablecoin option is a
+real, requested improvement, not padding.
+
+**Hedera requires explicit token association before an account can
+receive an HTS token** (unlike HBAR, which every account accepts by
+default) — confirmed by checking the Mirror Node directly
+(`/api/v1/accounts/<treasury>/tokens?token.id=0.0.429274` returned an empty
+list before, populated after). One-time setup script
+(`pnpm hedera:associate-usdc`, mirrors the `privy:setup-policy` /
+`hcs:setup-topic` pattern) associates the treasury; confirmed on the
+Mirror Node afterward.
+
+**`token_transfers` shape confirmed from a real transaction, not assumed
+from docs** — the Mirror Node's own Swagger/OpenAPI pages didn't render
+usefully through automated fetching, so a real testnet USDC holder account
+was found via `/api/v1/tokens/0.0.429274/balances`, and one of its real
+transactions inspected directly: `token_transfers: [{ token_id, account,
+amount, is_approval }]` — same shape as the native `transfers` array plus
+a `token_id` field. `verifyIncomingTokenTransfer` (`hederaMirror.ts`)
+mirrors the existing HBAR verification exactly, checking every record in
+the response (same multi-record gotcha as the HBAR path) for a matching
+`token_id` + recipient + amount.
+
+**USD-cents-per-HBAR peg reused, not duplicated:** the same
+`USD_CENTS_PER_HBAR` config that prices the Stripe card charge also prices
+the USDC-equivalent amount owed (testnet USDC's 6 decimals mean 1 cent =
+10,000 base units) — one nominal peg drives both non-native funding paths
+consistently.
+
+**Proven live, both halves:**
+- The association transaction is real, confirmed on the Mirror Node
+  before and after.
+- `verifyIncomingTokenTransfer` was tested against a real, independent
+  USDC transfer already on testnet (not one we generated — no testnet
+  USDC in hand, and getting some would mean signing up for Circle's
+  faucet, which wasn't done without asking first): exact match → true,
+  amount too high → false, wrong recipient → false, wrong token id →
+  false. The live HTTP route (`/forms/:formId/verify-funding` with
+  `asset: "USDC"`) was exercised the same way and correctly returned 422
+  with the exact computed minimum in the error message.
+- Not yet exercised: an actual USDC transfer landing in our own treasury
+  end-to-end (blocked on acquiring testnet USDC, not on our code) — noted
+  honestly rather than claimed as fully proven.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a
