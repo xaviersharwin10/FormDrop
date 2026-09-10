@@ -10,12 +10,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@google/genai": "2.21.0",
     "@formdrop/shared": "workspace:*",
     "@x402/core": "2.25.0",
     "@x402/fastify": "2.25.0",
     "@x402/hedera": "2.25.0",
     "dotenv": "^16.4.7",
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "zod": "4.6.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

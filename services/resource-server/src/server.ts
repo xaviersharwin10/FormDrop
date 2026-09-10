@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import { paymentMiddleware } from "@x402/fastify";
-import type { FormSubmissionPayload } from "@formdrop/shared";
+import type { VerifyRequestBody } from "@formdrop/shared";
 import { config } from "./config.js";
 import { HBAR_ASSET_ID, resourceServer } from "./x402.js";
 import { runVerification } from "./verify.js";
@@ -27,8 +27,9 @@ export function buildServer() {
     resourceServer,
   );
 
-  app.post<{ Body: FormSubmissionPayload }>("/verify", async (request, reply) => {
-    const verdict = await runVerification(request.body);
+  app.post<{ Body: VerifyRequestBody }>("/verify", async (request, reply) => {
+    const { payload, priorAnswerTexts } = request.body;
+    const verdict = await runVerification(payload, priorAnswerTexts ?? []);
     return reply.send(verdict);
   });
 

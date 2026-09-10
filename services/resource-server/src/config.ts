@@ -17,4 +17,7 @@ export const config = {
     process.env.BLOCKY402_FACILITATOR_URL ?? "https://api.testnet.blocky402.com",
   verificationPriceTinybar: process.env.VERIFICATION_PRICE_TINYBAR ?? "100000",
   port: Number(process.env.PORT ?? 4001),
+
+  /** Free-tier key from aistudio.google.com/apikey. */
+  geminiApiKey: requireEnv("GEMINI_API_KEY"),
 };

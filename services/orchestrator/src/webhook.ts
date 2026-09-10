@@ -1,11 +1,17 @@
-import type { FormSubmissionPayload, VerificationVerdict } from "@formdrop/shared";
+import type { FormSubmissionPayload, VerificationVerdict, VerifyRequestBody } from "@formdrop/shared";
 import { config } from "./config.js";
 import { fetchWithPayment, httpClient } from "./x402Client.js";
-import { recordResponse } from "./responseStore.js";
+import { getResponsesForForm, recordResponse } from "./responseStore.js";
 
 export interface FormSubmitResult {
   verdict: VerificationVerdict;
   x402TransactionId: string | null;
+}
+
+const MAX_PRIOR_ANSWERS_FOR_DUPLICATE_CHECK = 20;
+
+function summarizeAnswers(answers: Record<string, string>): string {
+  return Object.values(answers).join(" | ");
 }
 
 /**
@@ -15,10 +21,16 @@ export interface FormSubmitResult {
  * it's calling here.
  */
 export async function handleFormSubmit(payload: FormSubmissionPayload): Promise<FormSubmitResult> {
+  const priorAnswerTexts = getResponsesForForm(payload.formId)
+    .slice(-MAX_PRIOR_ANSWERS_FOR_DUPLICATE_CHECK)
+    .map((r) => summarizeAnswers(r.payload.answers));
+
+  const requestBody: VerifyRequestBody = { payload, priorAnswerTexts };
+
   const response = await fetchWithPayment(`${config.resourceServerUrl}/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

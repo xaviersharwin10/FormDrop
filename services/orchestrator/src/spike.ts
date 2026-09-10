@@ -6,7 +6,7 @@
  * (requires services/resource-server running locally, and both services'
  * .env files filled in with real Hedera testnet credentials)
  */
-import type { FormSubmissionPayload, VerificationVerdict } from "@formdrop/shared";
+import type { FormSubmissionPayload, VerificationVerdict, VerifyRequestBody } from "@formdrop/shared";
 import { config } from "./config.js";
 import { fetchWithPayment, httpClient } from "./x402Client.js";
 
@@ -18,13 +18,14 @@ async function main() {
     submittedAtIso: new Date().toISOString(),
     answers: { "How was your experience?": "Genuinely helpful, would use again." },
   };
+  const requestBody: VerifyRequestBody = { payload: dummyPayload, priorAnswerTexts: [] };
 
   console.log(`Calling ${config.resourceServerUrl}/verify (expect a 402, then a paid retry)...`);
 
   const response = await fetchWithPayment(`${config.resourceServerUrl}/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(dummyPayload),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

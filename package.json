@@ -18,6 +18,7 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "protobufjs",
+      "@google/genai",
       "@reown/appkit",
       "bufferutil",
       "keccak",

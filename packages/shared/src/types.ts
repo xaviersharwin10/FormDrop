@@ -31,6 +31,13 @@ export interface VerificationVerdict {
   verifiedAtIso: string;
 }
 
+/** What orchestrator sends resource-server — the response plus enough context (prior answers on this form) for real duplicate detection, since resource-server is otherwise stateless per call. */
+export interface VerifyRequestBody {
+  payload: FormSubmissionPayload;
+  /** Prior approved-or-not answer texts for this form, newest first, for near-duplicate comparison. */
+  priorAnswerTexts: string[];
+}
+
 /** What gets anchored to HCS as the tamper-proof audit record. */
 export interface AuditRecord {
   formId: string;
