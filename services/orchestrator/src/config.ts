@@ -33,4 +33,7 @@ export const config = {
   claimEmailFrom: process.env.CLAIM_EMAIL_FROM ?? "FormDrop <onboarding@resend.dev>",
   /** apps/web base URL — the claim link points here. */
   webAppUrl: process.env.WEB_APP_URL ?? "http://localhost:3000",
+
+  /** Set once by `pnpm hcs:setup-topic`, then pasted into .env. */
+  hcsAuditTopicId: process.env.HCS_AUDIT_TOPIC_ID,
 };

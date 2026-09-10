@@ -12,13 +12,17 @@ export interface StoredResponse {
   receivedAtIso: string;
   claimed: boolean;
   payoutTransactionId: string | null;
+  hcsTransactionId: string | null;
+  hcsSequenceNumber: string | null;
 }
 
 const responsesByForm = new Map<string, StoredResponse[]>();
 
-export function recordResponse(entry: Omit<StoredResponse, "claimed" | "payoutTransactionId">): void {
+export function recordResponse(
+  entry: Omit<StoredResponse, "claimed" | "payoutTransactionId" | "hcsTransactionId" | "hcsSequenceNumber">,
+): void {
   const existing = responsesByForm.get(entry.payload.formId) ?? [];
-  existing.push({ ...entry, claimed: false, payoutTransactionId: null });
+  existing.push({ ...entry, claimed: false, payoutTransactionId: null, hcsTransactionId: null, hcsSequenceNumber: null });
   responsesByForm.set(entry.payload.formId, existing);
 }
 
@@ -35,5 +39,13 @@ export function markClaimed(formId: string, responseId: string, payoutTransactio
   if (response) {
     response.claimed = true;
     response.payoutTransactionId = payoutTransactionId;
+  }
+}
+
+export function setHcsAudit(formId: string, responseId: string, hcsTransactionId: string, hcsSequenceNumber: string): void {
+  const response = getResponse(formId, responseId);
+  if (response) {
+    response.hcsTransactionId = hcsTransactionId;
+    response.hcsSequenceNumber = hcsSequenceNumber;
   }
 }

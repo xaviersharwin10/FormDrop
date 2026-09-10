@@ -8,6 +8,7 @@
     "spike": "tsx src/spike.ts",
     "privy:setup-policy": "tsx src/privySetupPolicy.ts",
     "privy:spike": "tsx src/privySpike.ts",
+    "hcs:setup-topic": "tsx src/hcsSetupTopic.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -15,6 +16,7 @@
   "dependencies": {
     "@fastify/cors": "11.3.0",
     "@formdrop/shared": "workspace:*",
+    "@hiero-ledger/sdk": "2.85.0",
     "@privy-io/node": "0.34.0",
     "@worldcoin/idkit-server": "1.1.1",
     "@x402/core": "2.25.0",

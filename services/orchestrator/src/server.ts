@@ -126,7 +126,11 @@ export function buildServer() {
       formId,
       responseId,
       decision: response.verdict.decision,
+      reasoning: response.verdict.reasoning,
       claimed: response.claimed,
+      x402TransactionId: response.x402TransactionId,
+      hcsTransactionId: response.hcsTransactionId,
+      hcsSequenceNumber: response.hcsSequenceNumber,
     });
   });
 
@@ -151,8 +155,6 @@ export function buildServer() {
       return reply.status(500).send({ error: "claim failed" });
     }
   });
-
-  // TODO (Day 4+): anchor the verdict to HCS for a tamper-proof audit trail.
 
   return app;
 }
