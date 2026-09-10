@@ -212,10 +212,44 @@ it on the Mirror Node:
 2. With resource-server and orchestrator both running, `pnpm
    --filter @formdrop/web dev` (listens on `:3000`).
 3. Log in (creates your creator embedded wallet), set a price per response
-   and max responses, then send testnet HBAR to the shown treasury account
-   and paste the transaction id to verify funding — checked against the
-   Mirror Node, not just taken on faith. The dashboard below polls
-   orchestrator's `/forms/:formId/stats` live.
+   and max responses, then fund the pot one of two ways — matching the
+   original "card or crypto in" funding model, both actually built:
+   - **Pay with card** — real Stripe Checkout (test mode), no crypto
+     knowledge required. On successful payment, a webhook marks the form
+     funded; the treasury (still the orchestrator's own Hedera operator
+     account) is what actually pays respondents out in testnet HBAR. See
+     the Stripe setup section below.
+   - **Send testnet HBAR yourself** — for anyone who already holds
+     testnet HBAR: send it to the shown treasury account and paste the
+     transaction id, checked against the Mirror Node, not just taken on
+     faith.
+   The dashboard below polls orchestrator's `/forms/:formId/stats` live.
+
+### Card funding (Stripe, test mode)
+
+1. Grab a free test-mode secret key at
+   [dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys)
+   — no billing setup needed. Add `STRIPE_SECRET_KEY` to
+   `services/orchestrator/.env`.
+2. Register a webhook endpoint for `checkout.session.completed` pointing at
+   `<orchestrator-url>/webhooks/stripe`, and add its signing secret as
+   `STRIPE_WEBHOOK_SECRET`. While developing locally without a public URL,
+   the [Stripe CLI](https://stripe.com/docs/stripe-cli)'s `stripe listen
+   --forward-to localhost:4002/webhooks/stripe` prints a usable secret.
+3. `USD_CENTS_PER_HBAR` (default 100, i.e. $1/HBAR) is a nominal peg only —
+   testnet HBAR has no real value, so this exists purely to give the card
+   charge a coherent USD amount.
+
+**Proof this works end to end:** a real Checkout Session was created
+against the live Stripe API for a 3-HBAR pot ($3.00 at the default peg),
+independently confirmed by re-fetching the session from Stripe's own API
+(`amount_total: 300`, correct `formId`/`potTinybar` metadata). The webhook
+handler was verified against a properly Stripe-signed test event (via
+Stripe's own `generateTestHeaderString` helper, since no public URL exists
+yet for a live redirect) — it correctly marked the form funded
+(`fundingTransactionId: "stripe:cs_test_..."`) — and a forged signature was
+independently confirmed to be rejected (`400 invalid signature`), proving
+the check is real, not decorative.
 
 ### World ID (Selfie Check on claim)
 

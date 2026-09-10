@@ -360,6 +360,55 @@ it — the decoded JSON is the exact audit record, byte for byte, including
 the real Gemini reasoning text and the real x402 transaction id from the
 same request.
 
+## 2026-09-10 — Card funding via Stripe: the "card or crypto in" model, both actually built
+
+Closes a real gap flagged by testing the product end to end rather than
+just the demo path: funding previously required the creator to already
+hold testnet HBAR and manually send it, which is not what a real
+Marketplace product could ask of a researcher/NGO with no crypto
+experience. `services/orchestrator/src/stripeFunding.ts` adds a genuine
+card-payment path alongside the existing crypto path — the original plan's
+"funds $900 total via a simple web app (card or crypto in)" — rather than
+replacing tested working code.
+
+**Why Stripe and not Privy's own fiat onramp:** checked first, since it
+would've been a cleaner single-vendor story. Privy's `useFiatOnramp`
+supports Base, Solana, Ethereum, Arbitrum, Polygon, and Tempo as
+destination chains — **not Hedera**. Confirmed from Privy's own docs
+before writing any code, not assumed. So the card charge and the actual
+settlement asset are necessarily decoupled: Stripe charges USD, and on
+success our backend (already the treasury for x402 and payouts) funds the
+pot in testnet HBAR. A `USD_CENTS_PER_HBAR` peg (default 100, i.e. $1/HBAR)
+exists purely to give the card charge a coherent amount — testnet HBAR has
+no real value, so this is explicitly nominal, not a real exchange rate.
+
+**Fastify needs the raw request body for Stripe's signature check**, which
+the default JSON body parser throws away after parsing. Fixed by
+overriding the `application/json` content-type parser globally to stash
+the raw `Buffer` on `request.rawBody` (typed via a `fastify.d.ts` module
+augmentation) while still parsing JSON as before — every other route's
+behavior is unchanged.
+
+**Verified live, both halves, without needing deployment or the Stripe
+CLI** (neither exists yet for this repo):
+- A real Checkout Session, created against the live Stripe API for a
+  3-HBAR pot, independently re-fetched from Stripe's own API to confirm
+  `amount_total: 300` (cents) and the correct `formId`/`potTinybar`
+  metadata.
+- The webhook handler, exercised with a properly Stripe-signed test event
+  via Stripe's own `generateTestHeaderString` helper (the officially
+  supported way to test signature-verified webhook code without a live
+  redirect) — correctly flipped the form to `funded: true` with
+  `fundingTransactionId: "stripe:cs_test_..."`.
+- A forged signature on the same endpoint was independently confirmed
+  rejected (`400 invalid signature`) — the check is real, not decorative.
+
+Not yet exercised: an actual human clicking through the real hosted
+Stripe Checkout page with a test card. The session-creation and
+webhook-handling halves are both proven; the middle (Stripe's own hosted
+UI) is Stripe's product, not ours, so lower-risk to leave unexercised for
+now.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a
