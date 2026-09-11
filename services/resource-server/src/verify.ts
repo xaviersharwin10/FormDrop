@@ -45,6 +45,15 @@ function formatAnswers(answers: Record<string, string>): string {
     .join("\n\n");
 }
 
+/** Gemini's free tier returns a transient 503 "high demand" ApiError under load — worth one retry before failing a call we've already been paid for. */
+function isRetryableGeminiError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "status" in err && (err as { status: unknown }).status === 503;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function runVerification(
   payload: FormSubmissionPayload,
   priorAnswerTexts: string[],
@@ -61,17 +70,29 @@ export async function runVerification(
       : "\nNo prior responses to this form yet — duplicate check trivially passes.",
   ].join("\n");
 
-  const response = await client.models.generateContent({
-    model: MODEL_ID,
-    contents: userMessage,
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_JSON_SCHEMA,
-    },
-  });
+  const maxAttempts = 3;
+  let response: Awaited<ReturnType<typeof client.models.generateContent>> | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      response = await client.models.generateContent({
+        model: MODEL_ID,
+        contents: userMessage,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          responseMimeType: "application/json",
+          responseSchema: RESPONSE_JSON_SCHEMA,
+        },
+      });
+      break;
+    } catch (err) {
+      if (attempt === maxAttempts || !isRetryableGeminiError(err)) {
+        throw err;
+      }
+      await sleep(1000 * attempt);
+    }
+  }
 
-  const text = response.text;
+  const text = response?.text;
   if (!text) {
     throw new Error("Gemini verification call returned no text");
   }
