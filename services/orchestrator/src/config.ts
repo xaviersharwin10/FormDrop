@@ -20,6 +20,19 @@ export const config = {
   privyAppSecret: requireEnv("PRIVY_APP_SECRET"),
   /** Set once by `pnpm privy:setup-policy`, then pasted into .env. */
   privyRespondentPolicyId: process.env.PRIVY_RESPONDENT_POLICY_ID,
+  /**
+   * Both set once by `pnpm privy:setup-creator-authorization-key`, then
+   * pasted into .env. The creator pot-funding wallet's `owner_id` is this
+   * key quorum — a single P-256 authorization key we hold — so every
+   * mutating request against it (including the secp256k1_sign RPC used to
+   * fund a pot) must carry a `privy-authorization-signature` computed with
+   * this private key, not just our app secret. Unlike a Privy *policy*
+   * (which can't name secp256k1_sign as a method — see
+   * privyCreatorWallet.ts), this is a real, separate control.
+   */
+  privyCreatorKeyQuorumId: process.env.PRIVY_CREATOR_KEY_QUORUM_ID,
+  /** Base64-encoded PKCS8 P-256 private key, no PEM headers. */
+  privyCreatorAuthorizationPrivateKey: process.env.PRIVY_CREATOR_AUTHORIZATION_PRIVATE_KEY,
 
   worldAppId: requireEnv("WORLD_APP_ID"),
   worldRpId: requireEnv("WORLD_RP_ID"),

@@ -12,6 +12,8 @@ import {
   USDC_BASE_UNITS_PER_USD_CENT,
 } from "./hederaMirror.js";
 import { createFundingCheckoutSession, constructWebhookEvent, tinybarToUsdCents } from "./stripeFunding.js";
+import { getOrCreateCreatorWallet } from "./privyCreatorWallet.js";
+import { fundPotFromCreatorWallet } from "./hederaPrivyFunding.js";
 import { config } from "./config.js";
 import { claimAction, ClaimError, processClaim } from "./claim.js";
 import { getRpSignature } from "./world.js";
@@ -153,6 +155,39 @@ export function buildServer() {
       return reply.send({ url });
     } catch (err) {
       request.log.error(err, "createFundingCheckoutSession failed");
+      return reply.status(502).send({ error: (err as Error).message });
+    }
+  });
+
+  app.get("/forms/:formId/privy-wallet", async (request, reply) => {
+    const { formId } = request.params as { formId: string };
+    try {
+      const wallet = await getOrCreateCreatorWallet(formId);
+      return reply.send({ address: wallet.address });
+    } catch (err) {
+      request.log.error(err, "getOrCreateCreatorWallet failed");
+      return reply.status(502).send({ error: (err as Error).message });
+    }
+  });
+
+  app.post("/forms/:formId/fund/privy-transfer", async (request, reply) => {
+    const { formId } = request.params as { formId: string };
+    const formConfig = getFormConfig(formId);
+    if (!formConfig) {
+      return reply.status(404).send({ error: "form not configured yet" });
+    }
+    if (formConfig.funded) {
+      return reply.status(409).send({ error: "form is already funded" });
+    }
+
+    const potTinybar = (BigInt(formConfig.pricePerResponseTinybar) * BigInt(formConfig.maxResponses)).toString();
+
+    try {
+      const { transactionId } = await fundPotFromCreatorWallet(formId, potTinybar);
+      const updated = markFunded(formId, transactionId);
+      return reply.send(updated);
+    } catch (err) {
+      request.log.error(err, "fundPotFromCreatorWallet failed");
       return reply.status(502).send({ error: (err as Error).message });
     }
   });
