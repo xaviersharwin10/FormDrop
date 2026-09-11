@@ -670,3 +670,60 @@ receiving account's USDC balance is exactly 10,000 base units afterward.
 Verification itself ran normally end to end (Gemini `APPROVE`), proving the
 whole pipeline still works with the new settlement asset, not just the
 payment step in isolation.
+
+## 2026-09-11 — Real Postgres persistence (replaces in-memory stores)
+
+**What forced this:** live testing today surfaced multiple real bugs caused
+by `orchestrator`'s three stores (`formConfigStore.ts`, `responseStore.ts`,
+`nullifierStore.ts`) being plain in-memory `Map`/`Set`s. `tsx watch`
+restarting on every code change during debugging wiped state mid-test more
+than once — most notably, a used World ID nullifier disappeared on restart,
+which looked at first like the duplicate-payout check wasn't working at
+all. It was working; it just had nothing durable to check against. Same
+root cause as the responses dashboard appearing empty right after a
+successful claim. This was always the plan (see the original
+"Database: Postgres" line in the 2026-09-09 entry above) — today's bugs
+just moved it from "eventually" to "now."
+
+**Provider:** Supabase (free tier), chosen over Neon mainly because the
+Supabase dashboard was already open from the World ID Developer Portal
+side of this project and the setup is functionally identical for this use
+case (managed Postgres, connection string, done).
+
+**A real, non-obvious deployment gap found and fixed:** Supabase's direct
+connection hostname (`db.<ref>.supabase.co:5432`) resolves to an
+**IPv6-only** address. This sandbox's Bash environment has no IPv6 egress
+at all (confirmed against a known-good public IPv6 host, not just
+Supabase's), so every migration attempt against the direct string timed
+out — `ETIMEDOUT` at the DNS-resolved IPv6 address, never reaching
+Postgres. Fixed by switching to Supabase's **Supavisor connection pooler**
+string (`aws-0-<region>.pooler.supabase.com:5432`, username
+`postgres.<project-ref>`), which is IPv4-reachable. Worth flagging for
+Railway/Render deployment too — depending on the host's own IPv6 support,
+the pooler string is the safer default regardless.
+
+Two credential dead ends before it actually connected, both confirmed with
+a raw `pg` `Client` bypassing the app entirely (not just app-level
+guessing): first attempt failed `28P01 password authentication failed`
+with the originally-supplied password even once URL-encoding was ruled out
+as the cause (tested both as a parsed connection string and as explicit
+config fields — identical failure either way). Root-caused by resetting
+the database password directly in Supabase and retrying — but the reset
+password *also* failed immediately after being issued, because Supavisor
+takes a short window to propagate a password change; a retry ~20s later
+connected cleanly. Not a code bug at any point — a credential/propagation
+issue, resolved by testing at the lowest possible layer (raw TCP + raw
+`pg.Client`) instead of guessing from the app's error message.
+
+**Schema** (`services/orchestrator/src/db/schema.ts`, applied via
+`pnpm db:migrate`): three tables — `forms`, `responses`,
+`used_nullifiers`. The `used_nullifiers` table's composite primary key
+(`nullifier`, `action`) is the actual enforcement of "one payout per real
+human per form" — a real database constraint, not just an application-code
+check, so it holds even under concurrent claim requests.
+
+**Proven live, not just typechecked:** created a form via
+`POST /forms`, force-killed the orchestrator process entirely (`kill -9`,
+not a `tsx watch` auto-restart), started a fresh process, and queried
+`GET /forms/:formId/stats` — the form was still there, byte-identical.
+This is the exact failure mode that caused today's live bugs, now closed.

@@ -1,6 +1,6 @@
-import { getFormConfig } from "./formConfigStore.js";
-import { getResponse, markClaimed } from "./responseStore.js";
-import { isNullifierUsed, markNullifierUsed } from "./nullifierStore.js";
+import { getFormConfig } from "./db/forms.js";
+import { getResponse, markClaimed } from "./db/responses.js";
+import { isNullifierUsed, markNullifierUsed } from "./db/nullifiers.js";
 import { verifyWorldIdProof, type IdKitVerifyPayload } from "./world.js";
 import { getOrCreateRespondentWallet } from "./privy.js";
 import { payHbarToEvmAddress } from "./hederaPayout.js";
@@ -31,12 +31,12 @@ export async function processClaim(
   responseId: string,
   idkitResponse: IdKitVerifyPayload,
 ): Promise<{ payoutTransactionId: string; walletAddress: string }> {
-  const formConfig = getFormConfig(formId);
+  const formConfig = await getFormConfig(formId);
   if (!formConfig) {
     throw new ClaimError(404, "form not configured");
   }
 
-  const response = getResponse(formId, responseId);
+  const response = await getResponse(formId, responseId);
   if (!response) {
     throw new ClaimError(404, "response not found");
   }
@@ -53,8 +53,10 @@ export async function processClaim(
   }
 
   const action = claimAction(formId);
-  if (nullifiers.some((n) => isNullifierUsed(n, action))) {
-    throw new ClaimError(409, "this person has already claimed a payout from this form");
+  for (const n of nullifiers) {
+    if (await isNullifierUsed(n, action)) {
+      throw new ClaimError(409, "this person has already claimed a payout from this form");
+    }
   }
 
   const wallet = await getOrCreateRespondentWallet(response.payload.respondentEmail);
@@ -64,9 +66,9 @@ export async function processClaim(
   );
 
   for (const nullifier of nullifiers) {
-    markNullifierUsed(nullifier, action);
+    await markNullifierUsed(nullifier, action);
   }
-  markClaimed(formId, responseId, payoutTransactionId);
+  await markClaimed(formId, responseId, payoutTransactionId);
 
   return { payoutTransactionId, walletAddress: wallet.address };
 }

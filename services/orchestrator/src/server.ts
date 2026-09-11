@@ -3,8 +3,8 @@ import cors from "@fastify/cors";
 import type Stripe from "stripe";
 import { parseFormSubmissionPayload } from "./validate.js";
 import { handleFormSubmit } from "./webhook.js";
-import { getFormConfig, markFunded, setFormConfig } from "./formConfigStore.js";
-import { getResponse, getResponsesForForm } from "./responseStore.js";
+import { getFormConfig, markFunded, setFormConfig, type FormConfig } from "./db/forms.js";
+import { getResponse, getResponsesForForm } from "./db/responses.js";
 import {
   verifyIncomingHbarTransfer,
   verifyIncomingTokenTransfer,
@@ -18,6 +18,36 @@ import { config } from "./config.js";
 import { claimAction, ClaimError, processClaim } from "./claim.js";
 import { getRpSignature } from "./world.js";
 import type { IdKitVerifyPayload } from "./world.js";
+
+/**
+ * The full stats shape the web app's `FormStats` type expects — computed
+ * fields like potTinybar/remainingBudgetTinybar aren't part of FormConfig
+ * itself. Every endpoint that returns "the form's current state" to the
+ * browser (not just internal bookkeeping) must go through this, not send a
+ * raw FormConfig — the web app renders potTinybar unconditionally as soon
+ * as it gets a response back.
+ */
+async function buildStats(formConfig: FormConfig) {
+  const responses = await getResponsesForForm(formConfig.formId);
+  const approved = responses.filter((r) => r.verdict.decision === "APPROVE").length;
+  const rejected = responses.filter((r) => r.verdict.decision === "REJECT").length;
+  const spentTinybar = BigInt(formConfig.pricePerResponseTinybar) * BigInt(approved);
+  const potTinybar = BigInt(formConfig.pricePerResponseTinybar) * BigInt(formConfig.maxResponses);
+
+  return {
+    formId: formConfig.formId,
+    pricePerResponseTinybar: formConfig.pricePerResponseTinybar,
+    maxResponses: formConfig.maxResponses,
+    funded: formConfig.funded,
+    fundingTransactionId: formConfig.fundingTransactionId,
+    received: responses.length,
+    approved,
+    rejected,
+    remainingResponses: Math.max(0, formConfig.maxResponses - approved),
+    potTinybar: potTinybar.toString(),
+    remainingBudgetTinybar: (potTinybar - spentTinybar).toString(),
+  };
+}
 
 export function buildServer() {
   const app = Fastify({ logger: true });
@@ -76,14 +106,13 @@ export function buildServer() {
       return reply.status(400).send({ error: "formId, pricePerResponseTinybar, maxResponses are required" });
     }
 
-    const config = {
+    const formConfig = await setFormConfig({
       formId: body.formId,
       pricePerResponseTinybar: body.pricePerResponseTinybar,
       maxResponses: body.maxResponses,
       createdAtIso: new Date().toISOString(),
-    };
-    setFormConfig(config);
-    return reply.send(config);
+    });
+    return reply.send(await buildStats(formConfig));
   });
 
   app.get("/forms/:formId/treasury", async () => ({
@@ -95,7 +124,7 @@ export function buildServer() {
   app.post("/forms/:formId/verify-funding", async (request, reply) => {
     const { formId } = request.params as { formId: string };
     const { transactionId, asset } = request.body as Partial<{ transactionId: string; asset: "HBAR" | "USDC" }>;
-    const formConfig = getFormConfig(formId);
+    const formConfig = await getFormConfig(formId);
 
     if (!formConfig) {
       return reply.status(404).send({ error: "form not configured yet" });
@@ -129,13 +158,13 @@ export function buildServer() {
       }
     }
 
-    const updated = markFunded(formId, transactionId);
-    return reply.send(updated);
+    const updated = await markFunded(formId, transactionId);
+    return reply.send(await buildStats(updated!));
   });
 
   app.post("/forms/:formId/fund/checkout-session", async (request, reply) => {
     const { formId } = request.params as { formId: string };
-    const formConfig = getFormConfig(formId);
+    const formConfig = await getFormConfig(formId);
     if (!formConfig) {
       return reply.status(404).send({ error: "form not configured yet" });
     }
@@ -172,7 +201,7 @@ export function buildServer() {
 
   app.post("/forms/:formId/fund/privy-transfer", async (request, reply) => {
     const { formId } = request.params as { formId: string };
-    const formConfig = getFormConfig(formId);
+    const formConfig = await getFormConfig(formId);
     if (!formConfig) {
       return reply.status(404).send({ error: "form not configured yet" });
     }
@@ -184,8 +213,8 @@ export function buildServer() {
 
     try {
       const { transactionId } = await fundPotFromCreatorWallet(formId, potTinybar);
-      const updated = markFunded(formId, transactionId);
-      return reply.send(updated);
+      const updated = await markFunded(formId, transactionId);
+      return reply.send(await buildStats(updated!));
     } catch (err) {
       request.log.error(err, "fundPotFromCreatorWallet failed");
       return reply.status(502).send({ error: (err as Error).message });
@@ -210,7 +239,7 @@ export function buildServer() {
       const session = event.data.object;
       const formId = session.metadata?.formId;
       if (formId && session.payment_status === "paid") {
-        markFunded(formId, `stripe:${session.id}`);
+        await markFunded(formId, `stripe:${session.id}`);
       }
     }
 
@@ -219,35 +248,38 @@ export function buildServer() {
 
   app.get("/forms/:formId/stats", async (request, reply) => {
     const { formId } = request.params as { formId: string };
-    const formConfig = getFormConfig(formId);
+    const formConfig = await getFormConfig(formId);
     if (!formConfig) {
       return reply.status(404).send({ error: "form not configured yet" });
     }
 
-    const responses = getResponsesForForm(formId);
-    const approved = responses.filter((r) => r.verdict.decision === "APPROVE").length;
-    const rejected = responses.filter((r) => r.verdict.decision === "REJECT").length;
-    const spentTinybar = BigInt(formConfig.pricePerResponseTinybar) * BigInt(approved);
-    const potTinybar = BigInt(formConfig.pricePerResponseTinybar) * BigInt(formConfig.maxResponses);
+    return reply.send(await buildStats(formConfig));
+  });
 
-    return reply.send({
-      formId,
-      pricePerResponseTinybar: formConfig.pricePerResponseTinybar,
-      maxResponses: formConfig.maxResponses,
-      funded: formConfig.funded,
-      fundingTransactionId: formConfig.fundingTransactionId,
-      received: responses.length,
-      approved,
-      rejected,
-      remainingResponses: Math.max(0, formConfig.maxResponses - approved),
-      potTinybar: potTinybar.toString(),
-      remainingBudgetTinybar: (potTinybar - spentTinybar).toString(),
-    });
+  app.get("/forms/:formId/responses", async (request, reply) => {
+    const { formId } = request.params as { formId: string };
+    const responses = await getResponsesForForm(formId);
+
+    return reply.send(
+      responses.map((r) => ({
+        responseId: r.payload.responseId,
+        respondentEmail: r.payload.respondentEmail,
+        submittedAtIso: r.payload.submittedAtIso,
+        decision: r.verdict.decision,
+        confidence: r.verdict.confidence,
+        reasoning: r.verdict.reasoning,
+        x402TransactionId: r.x402TransactionId,
+        claimed: r.claimed,
+        payoutTransactionId: r.payoutTransactionId,
+        hcsTransactionId: r.hcsTransactionId,
+        hcsSequenceNumber: r.hcsSequenceNumber,
+      })),
+    );
   });
 
   app.get("/forms/:formId/responses/:responseId", async (request, reply) => {
     const { formId, responseId } = request.params as { formId: string; responseId: string };
-    const response = getResponse(formId, responseId);
+    const response = await getResponse(formId, responseId);
     if (!response) {
       return reply.status(404).send({ error: "response not found" });
     }

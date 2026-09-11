@@ -11,16 +11,7 @@ import {
   getWorldRpSignature,
   submitClaim,
 } from "@/lib/orchestrator";
-
-/** Hedera SDK gives "0.0.x@seconds.nanos"; HashScan's URL form is "0.0.x-seconds-nanos". */
-function hashscanTransactionUrl(transactionId: string): string {
-  const hashscanId = transactionId.replace("@", "-").replace(/\.(\d+)$/, "-$1");
-  return `https://hashscan.io/testnet/transaction/${hashscanId}`;
-}
-
-function hashscanAccountUrl(accountIdOrEvmAddress: string): string {
-  return `https://hashscan.io/testnet/account/${accountIdOrEvmAddress}`;
-}
+import { hashscanAccountUrl, hashscanTransactionUrl } from "@/lib/hashscan";
 
 export function ClaimClient() {
   const params = useSearchParams();

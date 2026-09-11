@@ -139,3 +139,37 @@ button.secondary {
   font-size: 13px;
   margin-top: 8px;
 }
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.responses-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 720px;
+}
+
+.responses-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #666;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e5e5e5;
+  white-space: nowrap;
+}
+
+.responses-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: top;
+  max-width: 220px;
+}
+
+.responses-table td.mono {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -12,6 +12,7 @@
     "hcs:setup-topic": "tsx src/hcsSetupTopic.ts",
     "hedera:associate-usdc": "tsx src/hederaAssociateUsdc.ts",
     "hedera:setup-usdc-pay-to-account": "tsx src/hederaSetupUsdcPayToAccount.ts",
+    "db:migrate": "tsx src/db/migrate.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -30,11 +31,13 @@
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
     "nodemailer": "^10.0.3",
+    "pg": "^8.13.1",
     "stripe": "^22.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

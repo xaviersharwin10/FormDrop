@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { AuditRecord, FormSubmissionPayload, VerificationVerdict, VerifyRequestBody } from "@formdrop/shared";
 import { config } from "./config.js";
 import { fetchWithPayment, httpClient } from "./x402Client.js";
-import { getResponsesForForm, recordResponse, setHcsAudit } from "./responseStore.js";
+import { getResponsesForForm, recordResponse, setHcsAudit } from "./db/responses.js";
 import { sendClaimEmail } from "./email.js";
 import { anchorAuditRecord } from "./hcs.js";
 
@@ -24,7 +24,7 @@ function summarizeAnswers(answers: Record<string, string>): string {
  * it's calling here.
  */
 export async function handleFormSubmit(payload: FormSubmissionPayload): Promise<FormSubmitResult> {
-  const priorAnswerTexts = getResponsesForForm(payload.formId)
+  const priorAnswerTexts = (await getResponsesForForm(payload.formId))
     .slice(-MAX_PRIOR_ANSWERS_FOR_DUPLICATE_CHECK)
     .map((r) => summarizeAnswers(r.payload.answers));
 
@@ -49,7 +49,7 @@ export async function handleFormSubmit(payload: FormSubmissionPayload): Promise<
     `handleFormSubmit: formId=${payload.formId} responseId=${payload.responseId} respondentEmail=${payload.respondentEmail} decision=${verdict.decision} x402TransactionId=${x402TransactionId}`,
   );
 
-  recordResponse({
+  await recordResponse({
     payload,
     verdict,
     x402TransactionId,

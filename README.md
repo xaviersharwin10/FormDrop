@@ -57,8 +57,8 @@ apps/
 services/
   resource-server/  Fastify — x402-gated verification service (the "service" being sold)
   orchestrator/     Fastify — webhook receiver, paying x402 client, HCS anchoring, payouts, email
+                    src/db/  Postgres schema + client (forms, responses, used_nullifiers)
 packages/
-  db/             Postgres schema + client (shared by resource-server, orchestrator, web)
   shared/         Shared TypeScript types/utilities
 specs/            Planning docs and AI-assisted-workflow disclosure artifacts
 ```
@@ -361,6 +361,30 @@ account `0.0.10442744`, credited 100,000 tinybars via a real
 `CRYPTOTRANSFER`:
 [api/v1/accounts/0xf74850796781f2333d60ae8ec0cd577c80891576](https://testnet.mirrornode.hedera.com/api/v1/accounts/0xf74850796781f2333d60ae8ec0cd577c80891576).
 Re-claiming the same response is correctly rejected (`"already claimed"`).
+
+### Persistence (Postgres via Supabase)
+
+`orchestrator`'s form config, responses/verdicts, and used World ID
+nullifiers are stored in real Postgres (`services/orchestrator/src/db/`),
+not in-memory — data survives process restarts and redeploys, and the
+`used_nullifiers` table's composite primary key (`nullifier`, `action`) is
+a real database constraint enforcing "one payout per human per form," not
+just an application-level check.
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. Grab the connection string from **Project Settings → Database →
+   Connection pooling** (Supavisor), not the direct connection string —
+   Supabase's direct hostname resolves IPv6-only, which many hosts
+   (including this project's own sandboxed dev environment) can't reach.
+   The pooler string is IPv4-reachable and works everywhere.
+3. Set `DATABASE_URL` in `services/orchestrator/.env` to that string.
+4. Apply the schema: `pnpm --filter @formdrop/orchestrator db:migrate`
+   (idempotent — safe to re-run).
+
+**Proof this works end to end:** created a form via `POST /forms`,
+force-killed the orchestrator process (`kill -9`, not a `tsx watch`
+auto-restart), started a fresh process, and queried `GET
+/forms/:formId/stats` — the form was still there.
 
 ## License
 

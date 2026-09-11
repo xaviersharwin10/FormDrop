@@ -76,6 +76,26 @@ export function getStats(formId: string) {
   );
 }
 
+export interface FormResponseSummary {
+  responseId: string;
+  respondentEmail: string;
+  submittedAtIso: string;
+  decision: "APPROVE" | "REJECT";
+  confidence: number;
+  reasoning: string;
+  x402TransactionId: string | null;
+  claimed: boolean;
+  payoutTransactionId: string | null;
+  hcsTransactionId: string | null;
+  hcsSequenceNumber: string | null;
+}
+
+export function getResponses(formId: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/responses`).then((res) =>
+    asJson<FormResponseSummary[]>(res),
+  );
+}
+
 export interface RpSignatureBundle {
   app_id: `app_${string}`;
   rp_id: string;

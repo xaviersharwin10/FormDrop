@@ -10,6 +10,9 @@ function requireEnv(name: string): string {
 }
 
 export const config = {
+  /** Supabase (or any) Postgres connection string. Replaces the in-memory *Store.ts placeholders. */
+  databaseUrl: requireEnv("DATABASE_URL"),
+
   hederaAccountId: requireEnv("HEDERA_ACCOUNT_ID"),
   hederaPrivateKey: requireEnv("HEDERA_PRIVATE_KEY"),
   hederaNetwork: (process.env.HEDERA_NETWORK ?? "hedera:testnet") as Network,

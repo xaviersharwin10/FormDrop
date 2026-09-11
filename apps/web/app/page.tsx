@@ -4,10 +4,12 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import {
   createFundingCheckoutSession,
+  type FormResponseSummary,
   type FormStats,
   type FundingAsset,
   fundPotFromPrivyWallet,
   getCreatorPrivyWallet,
+  getResponses,
   getStats,
   getTreasuryAccountId,
   hbarToTinybar,
@@ -15,6 +17,7 @@ import {
   tinybarToHbar,
   verifyFunding,
 } from "@/lib/orchestrator";
+import { hashscanTransactionUrl } from "@/lib/hashscan";
 
 export default function CreatorConsole() {
   const { ready, authenticated, user, login, logout } = usePrivy();
@@ -23,6 +26,7 @@ export default function CreatorConsole() {
   const [priceHbar, setPriceHbar] = useState("1");
   const [maxResponses, setMaxResponses] = useState(300);
   const [stats, setStats] = useState<FormStats | null>(null);
+  const [responses, setResponses] = useState<FormResponseSummary[]>([]);
   const [treasury, setTreasury] = useState<{
     treasuryAccountId: string;
     usdcTokenId: string;
@@ -41,6 +45,7 @@ export default function CreatorConsole() {
   const refreshStats = useCallback(async (id: string) => {
     try {
       setStats(await getStats(id));
+      setResponses(await getResponses(id));
     } catch {
       // form not configured yet on the orchestrator — fine, ignore until saved
     }
@@ -56,12 +61,15 @@ export default function CreatorConsole() {
     setSaving(true);
     setError(null);
     try {
-      const result = await saveFormConfig({
+      await saveFormConfig({
         formId,
         pricePerResponseTinybar: hbarToTinybar(priceHbar),
         maxResponses,
       });
-      setStats(result);
+      // saveFormConfig's response is just the raw form config (no
+      // potTinybar/received/approved/etc — those are computed only by
+      // /stats), so fetch the full stats shape instead of using it directly.
+      setStats(await getStats(formId));
       setTreasury(await getTreasuryAccountId(formId));
     } catch (err) {
       setError((err as Error).message);
@@ -316,6 +324,70 @@ export default function CreatorConsole() {
                 <div className="label">HBAR remaining</div>
               </div>
             </div>
+          </div>
+
+          <h2>4. Responses</h2>
+          <div className="card">
+            {responses.length === 0 ? (
+              <p className="hint">No responses yet — they&rsquo;ll show up here the instant one comes in.</p>
+            ) : (
+              <div className="table-scroll">
+              <table className="responses-table">
+                <thead>
+                  <tr>
+                    <th>Respondent</th>
+                    <th>Decision</th>
+                    <th>Reasoning</th>
+                    <th>Verification payment</th>
+                    <th>Payout</th>
+                    <th>Audit trail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {responses.map((r) => (
+                    <tr key={r.responseId}>
+                      <td>{r.respondentEmail}</td>
+                      <td>
+                        <span className={`badge ${r.decision === "APPROVE" ? "funded" : "unfunded"}`}>
+                          {r.decision}
+                        </span>
+                      </td>
+                      <td className="hint">{r.reasoning}</td>
+                      <td className="mono">
+                        {r.x402TransactionId ? (
+                          <a href={hashscanTransactionUrl(r.x402TransactionId)} target="_blank" rel="noopener noreferrer">
+                            {r.x402TransactionId}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="mono">
+                        {r.payoutTransactionId ? (
+                          <a href={hashscanTransactionUrl(r.payoutTransactionId)} target="_blank" rel="noopener noreferrer">
+                            {r.payoutTransactionId}
+                          </a>
+                        ) : r.decision === "APPROVE" ? (
+                          "not claimed yet"
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="mono">
+                        {r.hcsTransactionId ? (
+                          <a href={hashscanTransactionUrl(r.hcsTransactionId)} target="_blank" rel="noopener noreferrer">
+                            seq #{r.hcsSequenceNumber}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            )}
           </div>
         </>
       )}
