@@ -6,6 +6,8 @@ import {
   createFundingCheckoutSession,
   type FormStats,
   type FundingAsset,
+  fundPotFromPrivyWallet,
+  getCreatorPrivyWallet,
   getStats,
   getTreasuryAccountId,
   hbarToTinybar,
@@ -27,11 +29,13 @@ export default function CreatorConsole() {
     usdCentsPerHbar: number;
   } | null>(null);
   const [fundingTxId, setFundingTxId] = useState("");
-  const [fundingMethod, setFundingMethod] = useState<"card" | "crypto">("card");
+  const [fundingMethod, setFundingMethod] = useState<"card" | "crypto" | "privy">("card");
   const [cryptoAsset, setCryptoAsset] = useState<FundingAsset>("HBAR");
+  const [privyWalletAddress, setPrivyWalletAddress] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [fundingWithPrivy, setFundingWithPrivy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshStats = useCallback(async (id: string) => {
@@ -78,6 +82,26 @@ export default function CreatorConsole() {
       setVerifying(false);
     }
   }, [formId, fundingTxId, cryptoAsset]);
+
+  const handleFundWithPrivy = useCallback(async () => {
+    setFundingWithPrivy(true);
+    setError(null);
+    try {
+      const result = await fundPotFromPrivyWallet(formId);
+      setStats(result);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setFundingWithPrivy(false);
+    }
+  }, [formId]);
+
+  useEffect(() => {
+    if (fundingMethod !== "privy" || !formId || privyWalletAddress) return;
+    getCreatorPrivyWallet(formId)
+      .then((wallet) => setPrivyWalletAddress(wallet.address))
+      .catch((err) => setError((err as Error).message));
+  }, [fundingMethod, formId, privyWalletAddress]);
 
   const handlePayWithCard = useCallback(async () => {
     setCheckingOut(true);
@@ -183,6 +207,12 @@ export default function CreatorConsole() {
                   >
                     Send crypto myself
                   </button>
+                  <button
+                    className={fundingMethod === "privy" ? "" : "secondary"}
+                    onClick={() => setFundingMethod("privy")}
+                  >
+                    Fund from Privy wallet
+                  </button>
                 </div>
 
                 {fundingMethod === "card" ? (
@@ -193,6 +223,19 @@ export default function CreatorConsole() {
                     </p>
                     <button onClick={handlePayWithCard} disabled={checkingOut}>
                       {checkingOut ? "Redirecting to checkout…" : "Pay with card"}
+                    </button>
+                  </>
+                ) : fundingMethod === "privy" ? (
+                  <>
+                    <p className="hint">
+                      A Privy-custodied wallet, provisioned just for this form. Send it{" "}
+                      <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> from a testnet faucet or
+                      wallet of your own, then fund the pot with one click — the transfer out of this
+                      wallet is authorized by a live Privy signature, not a key we hold ourselves.
+                    </p>
+                    <p className="mono">{privyWalletAddress ?? "Loading…"}</p>
+                    <button onClick={handleFundWithPrivy} disabled={fundingWithPrivy || !privyWalletAddress}>
+                      {fundingWithPrivy ? "Signing with Privy…" : "Fund from Privy wallet"}
                     </button>
                   </>
                 ) : (

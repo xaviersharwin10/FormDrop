@@ -58,6 +58,18 @@ export function createFundingCheckoutSession(formId: string, successUrl: string,
   }).then((res) => asJson<{ url: string }>(res));
 }
 
+export function getCreatorPrivyWallet(formId: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/privy-wallet`).then((res) =>
+    asJson<{ address: string }>(res),
+  );
+}
+
+export function fundPotFromPrivyWallet(formId: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/fund/privy-transfer`, {
+    method: "POST",
+  }).then((res) => asJson<FormStats>(res));
+}
+
 export function getStats(formId: string) {
   return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/stats`).then((res) =>
     asJson<FormStats>(res),
