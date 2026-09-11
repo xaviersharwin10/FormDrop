@@ -12,6 +12,16 @@ import {
   submitClaim,
 } from "@/lib/orchestrator";
 
+/** Hedera SDK gives "0.0.x@seconds.nanos"; HashScan's URL form is "0.0.x-seconds-nanos". */
+function hashscanTransactionUrl(transactionId: string): string {
+  const hashscanId = transactionId.replace("@", "-").replace(/\.(\d+)$/, "-$1");
+  return `https://hashscan.io/testnet/transaction/${hashscanId}`;
+}
+
+function hashscanAccountUrl(accountIdOrEvmAddress: string): string {
+  return `https://hashscan.io/testnet/account/${accountIdOrEvmAddress}`;
+}
+
 export function ClaimClient() {
   const params = useSearchParams();
   const formId = params.get("formId") ?? "";
@@ -61,9 +71,17 @@ export function ClaimClient() {
         <div className="card">
           <span className="badge funded">Paid</span>
           <p className="mono" style={{ marginTop: 12 }}>
-            wallet: {result.walletAddress}
+            wallet:{" "}
+            <a href={hashscanAccountUrl(result.walletAddress)} target="_blank" rel="noopener noreferrer">
+              {result.walletAddress}
+            </a>
           </p>
-          <p className="mono">tx: {result.payoutTransactionId}</p>
+          <p className="mono">
+            tx:{" "}
+            <a href={hashscanTransactionUrl(result.payoutTransactionId)} target="_blank" rel="noopener noreferrer">
+              {result.payoutTransactionId}
+            </a>
+          </p>
         </div>
       ) : status?.claimed ? (
         <div className="card">

@@ -1,8 +1,14 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import type { FormSubmissionPayload } from "@formdrop/shared";
 import { config } from "./config.js";
 
-const resend = new Resend(config.resendApiKey);
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: config.gmailUser,
+    pass: config.gmailAppPassword,
+  },
+});
 
 /**
  * Fires right after an APPROVE verdict. Failure here must never fail the
@@ -14,15 +20,15 @@ const resend = new Resend(config.resendApiKey);
 export async function sendClaimEmail(payload: FormSubmissionPayload): Promise<void> {
   const claimUrl = `${config.webAppUrl}/claim?formId=${encodeURIComponent(payload.formId)}&responseId=${encodeURIComponent(payload.responseId)}`;
 
-  const { error } = await resend.emails.send({
-    from: config.claimEmailFrom,
-    to: payload.respondentEmail,
-    subject: "You've been paid for your response — claim it now",
-    html: `<p>Your form response was approved.</p><p><a href="${claimUrl}">Click here to verify you're a real, unique person and claim your payout</a>.</p><p>Takes about 30 seconds — a quick face scan, then the money is yours.</p>`,
-    text: `Your form response was approved. Claim your payout here: ${claimUrl}\n\nTakes about 30 seconds — a quick face scan, then the money is yours.`,
-  });
-
-  if (error) {
-    console.error("sendClaimEmail failed:", error);
+  try {
+    await transporter.sendMail({
+      from: `FormDrop <${config.gmailUser}>`,
+      to: payload.respondentEmail,
+      subject: "You've been paid for your response — claim it now",
+      html: `<p>Your form response was approved.</p><p><a href="${claimUrl}">Click here to verify you're a real, unique person and claim your payout</a>.</p><p>Takes about 30 seconds — a quick face scan, then the money is yours.</p>`,
+      text: `Your form response was approved. Claim your payout here: ${claimUrl}\n\nTakes about 30 seconds — a quick face scan, then the money is yours.`,
+    });
+  } catch (err) {
+    console.error("sendClaimEmail failed:", err);
   }
 }

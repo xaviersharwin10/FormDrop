@@ -27,10 +27,15 @@ export const config = {
   /** "sandbox" while Selfie Check access is pending/being tested, "production" once live. */
   worldEnvironment: (process.env.WORLD_ENVIRONMENT ?? "sandbox") as "production" | "staging" | "sandbox",
 
-  /** From resend.com/api-keys. */
-  resendApiKey: requireEnv("RESEND_API_KEY"),
-  /** resend.dev's shared test sender works with no domain verification; switch once a real domain is verified. */
-  claimEmailFrom: process.env.CLAIM_EMAIL_FROM ?? "FormDrop <onboarding@resend.dev>",
+  /**
+   * Gmail account sending claim emails, via an App Password (Google Account
+   * -> Security -> 2-Step Verification -> App passwords; requires 2FA on).
+   * Switched to from Resend's test-mode sender, which turned out to only
+   * allow sending to the Resend account's own email — a real respondent's
+   * inbox would never receive anything without a verified domain.
+   */
+  gmailUser: requireEnv("GMAIL_USER"),
+  gmailAppPassword: requireEnv("GMAIL_APP_PASSWORD"),
   /** apps/web base URL — the claim link points here. */
   webAppUrl: process.env.WEB_APP_URL ?? "http://localhost:3000",
 

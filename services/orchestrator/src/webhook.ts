@@ -45,6 +45,10 @@ export async function handleFormSubmit(payload: FormSubmissionPayload): Promise<
 
   const x402TransactionId = settlement?.transaction ?? null;
 
+  console.log(
+    `handleFormSubmit: formId=${payload.formId} responseId=${payload.responseId} respondentEmail=${payload.respondentEmail} decision=${verdict.decision} x402TransactionId=${x402TransactionId}`,
+  );
+
   recordResponse({
     payload,
     verdict,
