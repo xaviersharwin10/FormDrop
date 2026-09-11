@@ -69,9 +69,12 @@ specs/            Planning docs and AI-assisted-workflow disclosure artifacts
   x402-gated verification endpoint on Hedera testnet, settled through the
   Blocky402 facilitator; `orchestrator` is the paying client. Verdicts are
   anchored to HCS as a verifiable audit trail.
-- **Privy (Best B2B financial product + Best financial flow):** creator-side
-  pot funding/management, and respondent-side claim-to-payout, both via Privy
-  embedded wallets.
+- **Privy (Best B2B financial product + Best financial flow):** respondent
+  payout wallets (receive-only, policy-gated) for claim-to-payout, and a
+  creator-side pot-funding wallet, owned by a key quorum and gated by that
+  authorization key, where the funding transfer itself is signed through
+  Privy's `secp256k1_sign` RPC and executed as a real Hedera transaction —
+  not just custody.
 - **World (Selfie Check):** gates the claim step to prove unique personhood
   and prevent pot-draining via fake-email farming.
 
@@ -215,8 +218,7 @@ it on the Mirror Node:
 2. With resource-server and orchestrator both running, `pnpm
    --filter @formdrop/web dev` (listens on `:3000`).
 3. Log in (creates your creator embedded wallet), set a price per response
-   and max responses, then fund the pot one of two ways — matching the
-   original "card or crypto in" funding model, both actually built:
+   and max responses, then fund the pot one of three ways:
    - **Pay with card** — real Stripe Checkout (test mode), no crypto
      knowledge required. On successful payment, a webhook marks the form
      funded; the treasury (still the orchestrator's own Hedera operator
@@ -227,6 +229,11 @@ it on the Mirror Node:
      volatile-priced asset. Send it to the shown treasury account and
      paste the transaction id, checked against the Mirror Node, not just
      taken on faith.
+   - **Fund from Privy wallet** — a Privy-custodied wallet provisioned per
+     form. Send it testnet HBAR, then fund with one click: the transfer out
+     of that wallet into the treasury is authorized by a live Privy
+     signature, not a key the orchestrator holds. See the Privy-signed
+     funding section below.
    The dashboard below polls orchestrator's `/forms/:formId/stats` live.
 
 ### Card funding (Stripe, test mode)
@@ -275,6 +282,40 @@ exact computed minimum required. Not yet exercised: an actual USDC
 transfer landing in the treasury itself, since that needs testnet USDC in
 hand (Circle's faucet requires signing up for a separate account, not done
 without asking first) — noted honestly rather than claimed as proven.
+
+### Privy-signed pot funding (creator wallet → treasury)
+
+A third funding path where the *fund-the-pot transfer itself* executes
+through Privy, not just wallet custody: the orchestrator provisions a Privy
+wallet per form (`GET /forms/:formId/privy-wallet`), the creator sends it
+testnet HBAR, and `POST /forms/:formId/fund/privy-transfer` builds a real
+Hedera `TransferTransaction` moving that HBAR into the treasury, signed via
+a bridge (`services/orchestrator/src/hederaPrivySigner.ts`) between Privy's
+raw `secp256k1_sign` RPC and Hedera's external-signer `Transaction.signWith`
+— both confirmed from the installed SDKs' own source, not assumed.
+
+This wallet is also locked down with a real Privy control: its `owner_id`
+is a **key quorum** — a P-256 authorization key our server holds, generated
+once via `pnpm --filter @formdrop/orchestrator privy:setup-creator-authorization-key`
+(prints `PRIVY_CREATOR_KEY_QUORUM_ID` and
+`PRIVY_CREATOR_AUTHORIZATION_PRIVATE_KEY` to add to `.env`). Once set,
+Privy itself requires every mutating call against that wallet — including
+the raw-sign RPC the funding bridge uses — to carry a signature computed
+with that key; holding the app secret alone is no longer enough. (The
+simpler Privy *policy* mechanism, used for the respondent wallet below,
+can't gate this wallet the same way — `secp256k1_sign` isn't a nameable
+policy method in the installed SDK; a key quorum is the right tool here,
+not a workaround. See `specs/DECISIONS.md` for the full reasoning.)
+
+**Proof this works end to end:** provisioned a real Privy wallet
+(`0xdDB5F014dB67a754A911b52c9C76D862D70b9717`), sent it real testnet HBAR,
+then called the funding endpoint — it recovered the wallet's public key via
+ECDSA signature recovery (Privy never exposes it directly), signed a real
+transfer transaction through Privy with the key-quorum authorization
+attached, and got back a real `SUCCESS` receipt
+(`0.0.10439799@1789137988.901478637`) on the first attempt. Separately
+confirmed the control is real, not decorative: the same RPC call *without*
+the authorization signature was rejected by Privy's live API with a `401`.
 
 ### World ID (Selfie Check on claim)
 

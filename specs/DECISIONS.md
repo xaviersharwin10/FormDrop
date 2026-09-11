@@ -514,3 +514,111 @@ hackathon) makes this requirement unambiguous in the README, the architecture
 diagram, and the demo video — there is a clearly-servable "service" and a
 clearly-distinct "agent/platform" paying for it, not one process pretending
 to be both.
+
+## 2026-09-11 — Creator pot-funding via a Privy-signed Hedera transfer
+
+Privy's "Best Financial Flow" track requires that "the flow itself must
+execute through Privy infrastructure" — not just wallet custody somewhere in
+the product. Before building anything, checked (deliberately, on request,
+before writing code) whether this was a natural fit or shoehorning:
+
+1. **Does Privy expose a signing primitive independent of chain-specific
+   transaction building?** Yes — confirmed from the installed
+   `@privy-io/node` `.d.ts`: `wallets()._rpc(walletId, { method:
+   "secp256k1_sign", params: { hash } })` signs an arbitrary pre-computed
+   32-byte hash and returns a raw signature. Not Ethereum-specific in what
+   it does — it's a raw ECDSA-over-secp256k1 primitive that happens to live
+   under the "ethereum" wallet type.
+2. **Does Hedera's SDK support an external signer instead of a held private
+   key?** Yes — confirmed from `@hiero-ledger/sdk` source:
+   `Transaction.signWith(publicKey, transactionSigner)` is the *actual*
+   implementation `.sign(privateKey)` itself wraps
+   (`signWith(pk.publicKey, m => pk.sign(m))`), not a side door.
+
+Both are real, general-purpose SDK features meant for exactly this kind of
+"custody lives elsewhere" scenario — so this shipped as the third
+pot-funding path (alongside Stripe card funding and manual crypto send),
+not a replacement for the other two.
+
+**What had to be reverse-engineered to make it work (all confirmed from
+source, not assumed):**
+
+- `Transaction.signWith`'s callback receives the **raw, unhashed** per-node
+  transaction body bytes and must return a **64-byte compact (r‖s) ECDSA
+  signature** — no recovery byte, straight into the protobuf `sigPair`
+  (`Transaction.js` line ~1075, `PublicKey._toProtobufSignature`).
+- Hedera's own ECDSA `PrivateKey.sign()` hashes that message with
+  **Keccak-256** before signing
+  (`@hiero-ledger/cryptography/src/primitive/ecdsa.js`) — so the bridge
+  hashes with Keccak-256 itself before calling Privy, since Privy's
+  `secp256k1_sign` takes an already-computed hash, not raw bytes it hashes
+  for you.
+- Privy **never exposes a wallet's raw public key** — only its address (a
+  one-way hash of the key), but `signWith` needs an actual `PublicKey`
+  object up front. Solved with one throwaway `secp256k1_sign` call and
+  **ECDSA public-key recovery** (same math Ethereum uses to recover
+  `msg.sender` from `v,r,s`) — try both recovery bits, keep whichever
+  recovers a key whose address matches the known wallet address. Runs once
+  per wallet, not per signature.
+- Privy's response's TypeScript type for `_rpc` is a union over every RPC
+  method's response shape (not discriminated by the request), so the
+  `signature` field needs a narrowing cast — documented inline in
+  `hederaPrivySigner.ts` with the exact `.d.ts` type it corresponds to.
+- **The creator's new Privy wallet initially carried no Privy control at
+  all**, unlike the respondent payout wallet's explicit "deny everything"
+  policy (`privySetupPolicy.ts`). Checked the installed SDK's
+  `PolicyMethod` enum (`@privy-io/node/resources/policies.d.ts`) before
+  assuming a matching "allow only secp256k1_sign" rule could exist the same
+  way — it can't: `secp256k1_sign` isn't one of the nameable methods.
+
+  Checked whether this actually mattered for qualification before treating
+  it as a blocker: it didn't — Privy's "Best B2B Financial Product"
+  qualification requirement is "at least one" of policies/signers/key
+  quorums/intents, and the respondent wallet's policy already satisfies
+  that on its own. But since a real, better-suited mechanism existed, fixed
+  it anyway rather than resting on a technicality (2026-09-11, same day):
+  the creator wallet's `owner_id` is now set to a **key quorum** — one
+  P-256 (secp256r1) authorization key generated and held only by our own
+  server (`pnpm privy:setup-creator-authorization-key`, new file
+  `privySetupCreatorAuthorizationKey.ts`; the key and quorum id are pasted
+  into `.env`, never committed). Confirmed from
+  `@privy-io/node/lib/authorization.d.ts` and `WalletCreateParams.owner_id`
+  in the installed SDK: once a wallet has an owner, Privy requires every
+  mutating request against it — including the raw `secp256k1_sign` RPC the
+  funding bridge calls — to carry a `privy-authorization-signature` header
+  computed with that key. Holding `PRIVY_APP_SECRET` is no longer
+  sufficient on its own to make this wallet sign anything.
+
+  `hederaPrivySigner.ts` was switched from the raw `wallets()._rpc()` call
+  to the higher-level `wallets().rpc()` wrapper, which accepts an
+  `authorization_context: { authorization_private_keys: [...] }` and
+  computes that header itself — no hand-rolled request signing needed.
+
+  **Proved the control is real, not decorative**, with a negative test: an
+  `_rpc` call against the same wallet *without* the authorization context
+  was rejected by Privy's live API with a real `401`:
+  `"Missing 'privy-authorization-signature' header or no signatures
+  provided."` Then confirmed the legitimate path still works end to end
+  (below).
+- Privy's response's TypeScript type for `_rpc`/`rpc` is a union over every
+  RPC method's response shape (not discriminated by the request), so the
+  `signature` field needs a narrowing cast — documented inline in
+  `hederaPrivySigner.ts` with the exact `.d.ts` type it corresponds to.
+
+**Proven end to end on real testnet Hedera**, not just typechecked, twice:
+first without the key-quorum owner (created a form, provisioned a Privy
+wallet `0xdd0916caA943d3883D6d038C0625FD4B082BDEb9`, sent it 1.1 real
+testnet HBAR, funded the pot — real `SUCCESS` receipt
+`0.0.10439799@1789137085.152790619`), then again after adding the key
+quorum, against a fresh wallet `0xdDB5F014dB67a754A911b52c9C76D862D70b9717`
+— real `SUCCESS` receipt `0.0.10439799@1789137988.901478637`, this time
+with the authorization signature genuinely required and genuinely computed
+correctly on the first attempt.
+
+New files: `services/orchestrator/src/privyCreatorWallet.ts`,
+`hederaPrivySigner.ts`, `hederaPrivyFunding.ts`,
+`privySetupCreatorAuthorizationKey.ts`. New routes: `GET
+/forms/:formId/privy-wallet`, `POST /forms/:formId/fund/privy-transfer`. New
+deps: `@noble/hashes`, `@noble/curves` (already present transitively via
+`@hiero-ledger/sdk`'s own dependency chain — pinned as direct deps instead
+of relying on that).
