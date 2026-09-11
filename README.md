@@ -138,26 +138,29 @@ Each settled a real, separate Hedera testnet transaction
 check either on the Mirror Node, e.g.
 [api/v1/transactions/0.0.7162784-1789002671-381366556](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789002671-381366556).
 
-### Claim email (Resend)
+### Claim email (Gmail SMTP)
 
-1. Grab a free API key at [resend.com/api-keys](https://resend.com/api-keys)
-   — no domain verification needed to start; the shared `onboarding@resend.dev`
-   sender works for any recipient.
-2. Add `RESEND_API_KEY` to `services/orchestrator/.env`. Optionally set
-   `CLAIM_EMAIL_FROM` (once a custom domain is verified) and `WEB_APP_URL`
-   (defaults to `http://localhost:3000`).
+1. Enable 2-Step Verification on the sending Gmail account, then generate
+   an App Password at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
+2. Add `GMAIL_USER` and `GMAIL_APP_PASSWORD` to
+   `services/orchestrator/.env`. Optionally set `WEB_APP_URL` (defaults to
+   `http://localhost:3000`).
 
 The moment `handleFormSubmit` records an `APPROVE` verdict, it fires an
-email (`services/orchestrator/src/email.ts`) containing the respondent's
-claim link — fire-and-forget, so a slow or bounced email can never turn a
-successful paid verification into a webhook failure.
+email (`services/orchestrator/src/email.ts`, via `nodemailer`) containing
+the respondent's claim link — fire-and-forget, so a slow or bounced email
+can never turn a successful paid verification into a webhook failure.
 
-**Proof this works end to end:** a real webhook POST with a genuine answer
-→ a real x402 payment settled on Hedera testnet
-(`0.0.7162784@1789004592.568918146` — check it on the
-[Mirror Node](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789004592-568918146))
-→ a real Gemini `APPROVE` → a real email landed in a Gmail inbox with a
-working claim link for that exact `formId`/`responseId`.
+Originally built on Resend; switched after a real Google Form test showed
+Resend's test-mode sender only delivers to the Resend account's own
+email, not arbitrary respondents — see `specs/DECISIONS.md`
+(2026-09-11) for how that was caught and fixed.
+
+**Proof this works end to end:** a real Google Form submission — not a
+simulated `curl` — drove a real webhook call, a real x402 payment on
+Hedera testnet, a real Gemini `APPROVE`, and a real email delivered to a
+third-party inbox (not the sending account's own) with a working claim
+link.
 
 ### HCS audit trail (verification verdicts, verifiable on-chain)
 

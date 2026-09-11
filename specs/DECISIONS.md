@@ -457,6 +457,53 @@ consistently.
   end-to-end (blocked on acquiring testnet USDC, not on our code) — noted
   honestly rather than claimed as fully proven.
 
+## 2026-09-11 — First real Google Form pass, full loop, no simulation
+
+Every prior proof of Loop 1 (verification) was a `curl` POST to
+`/webhook/form-submit` simulating what Apps Script would send. Today a
+real Google Form (created by Sharwin) was wired up for real, without
+deploying anywhere yet — `cloudflared tunnel --url http://localhost:4002`
+(no account needed) gave the local orchestrator a real public URL, pasted
+into the Apps Script's `ORCHESTRATOR_WEBHOOK_URL` Script Property. A real
+submission then drove the entire product, both loops, back to back:
+
+form submit -> real `onFormSubmit` trigger -> real webhook over the tunnel
+-> real x402 payment settled on Hedera testnet -> real Gemini `APPROVE` ->
+real claim email delivered -> real World ID Selfie Check -> real Privy
+wallet lookup -> real Hedera payout, shown on the claim page linked to
+HashScan.
+
+**Three real bugs surfaced, none of them hypothetical:**
+
+1. **`ScriptApp.getProjectTriggers()` / `.newTrigger()` need the
+   `script.scriptapp` OAuth scope.** Declaring any `oauthScopes` in
+   `appsscript.json` switches Apps Script out of auto-detecting scopes
+   from code — every scope actually used must be listed explicitly, and
+   this one was missing. Fixed, and it's a good reminder that an explicit
+   scope list is a completeness contract, not just documentation.
+2. **Resend's shared test-mode sender only sends to the Resend account's
+   own email**, not arbitrary recipients — contradicting what was
+   documented after the earlier isolated test (which happened to send to
+   the account owner's own address, masking the restriction). A real
+   respondent using a different email got a 403 the moment it mattered.
+   Switched to Gmail SMTP (`nodemailer`, App Password) — free, sends to
+   any recipient immediately, no domain needed. Re-verified live to a
+   third-party address before trusting it again.
+3. **Claiming requires the form to be registered via `POST /forms`
+   first** (for the price), which this real form never was — only the
+   webhook path had been exercised for it. `processClaim` correctly
+   404'd, but IDKit's widget surfaces *any* `handleVerify` rejection as
+   its own generic "Verification declined... contact the website owner"
+   message — genuinely misleading, since the real Selfie Check itself had
+   already succeeded. Worth remembering for the demo: that error text
+   does not mean World ID failed.
+
+**Also confirmed:** `processClaim` never actually checks
+`formConfig.funded` — it only needs the price. The treasury pays out
+regardless, since it already holds testnet HBAR from the faucet. Funding
+verification is a trust/dashboard feature for the creator, not a payout
+gate — worth stating precisely, since it's easy to assume otherwise.
+
 ## Why two backend services instead of one
 
 The Hedera track requires: "Host a live x402-gated service... Build a
