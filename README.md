@@ -66,9 +66,11 @@ specs/            Planning docs and AI-assisted-workflow disclosure artifacts
 ## Sponsor integrations
 
 - **Hedera (AI & Agentic Payments track):** `resource-server` hosts a live
-  x402-gated verification endpoint on Hedera testnet, settled through the
-  Blocky402 facilitator; `orchestrator` is the paying client. Verdicts are
-  anchored to HCS as a verifiable audit trail.
+  x402-gated verification endpoint on Hedera testnet, settled in testnet
+  USDC (an HTS token) through the Blocky402 facilitator; `orchestrator` is
+  the paying client, and pays per call — real pay-per-call metering, not a
+  flat fee. Verdicts are anchored to HCS as a verifiable, independently
+  checkable audit trail.
 - **Privy (Best B2B financial product + Best financial flow):** respondent
   payout wallets (receive-only, policy-gated) for claim-to-payout, and a
   creator-side pot-funding wallet, owned by a key quorum and gated by that
@@ -107,11 +109,30 @@ pnpm install
 No Blocky402 API key is required — the facilitator
 (`https://api.testnet.blocky402.com`) is open access.
 
+**Settlement asset:** `/verify` is priced in **testnet USDC** by default
+(`X402_SETTLEMENT_ASSET=USDC` in `services/resource-server/.env`, $0.01 per
+call) — an HTS token, and `@x402/hedera`'s own default settlement asset on
+both Hedera networks, not a bolt-on. Switchable back to native HBAR with
+one env var (`X402_SETTLEMENT_ASSET=HBAR`) — both paths are fully proven,
+nothing was removed. The pay-to account needs a one-time USDC association
+before it can receive it: `pnpm --filter @formdrop/orchestrator
+hedera:setup-usdc-pay-to-account` generates a fresh account for exactly
+this, signs its own association, and discards the private key immediately
+— `resource-server` never needs to hold one.
+
 **Proof this works end to end:** transaction
-`0.0.7162784-1788964944-181581350` on Hedera testnet — a real x402 payment
-settled through Blocky402 for one verification call. Check it yourself on
-the public Mirror Node:
+`0.0.7162784-1788964944-181581350` on Hedera testnet — the original x402
+payment settled through Blocky402, in HBAR, for one verification call.
+Check it yourself on the public Mirror Node:
 [api/v1/transactions/0.0.7162784-1788964944-181581350](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1788964944-181581350).
+
+After switching settlement to USDC, re-proven independently: transaction
+`0.0.7162784-1789139948-706832928` — a real `CRYPTOTRANSFER` of 10,000 base
+units (6 decimals) of `0.0.429274` (testnet USDC) from the orchestrator's
+operator account to the pay-to account, `result: SUCCESS`, driven by a real
+webhook submission that also produced a real Gemini `APPROVE` verdict —
+not just the payment step in isolation:
+[api/v1/transactions/0.0.7162784-1789139948-706832928](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789139948-706832928).
 
 ### LLM verification (Google Gemini, free tier)
 

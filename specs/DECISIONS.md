@@ -622,3 +622,51 @@ New files: `services/orchestrator/src/privyCreatorWallet.ts`,
 deps: `@noble/hashes`, `@noble/curves` (already present transitively via
 `@hiero-ledger/sdk`'s own dependency chain — pinned as direct deps instead
 of relying on that).
+
+## 2026-09-11 — x402 settlement switched to USDC (an HTS token), proven live
+
+Full Hedera-track audit against the live prize page turned up one real,
+easy bonus gap: "HTS tokens or custom fee schedules" wasn't met by the
+*settlement* path — testnet USDC was only ever used for creator pot
+funding. Checked `@x402/hedera`'s own source before assuming this needed
+new infra: its `DEFAULT_ASSETS` table maps **both** Hedera testnet and
+mainnet to USDC, not HBAR — meaning `resource-server` pricing `/verify` in
+HBAR (`HBAR_ASSET_ID = "0.0.0"`) was overriding the package's own default,
+not following it.
+
+**What actually blocked it:** the existing `HEDERA_PAY_TO_ACCOUNT_ID`
+(`0.0.10440038`) can't be associated with USDC without a signature from
+that account's own key — a key this repo never held (by design;
+resource-server's config comment says "no private key needed here; only
+the paying client signs"). Rather than ask for a possibly-unrecoverable
+key, a fresh account was generated instead
+(`hederaSetupUsdcPayToAccount.ts`, new `pnpm hedera:setup-usdc-pay-to-account`
+script): a new ECDSA keypair funds its own HIP-583 hollow account, signs
+its own one-time `TokenAssociateTransaction`, and the private key is then
+discarded — never printed, never stored. resource-server still never needs
+to sign anything to receive payments, same as before.
+
+**Also corrected a wrong assumption from earlier in this project:**
+Circle's testnet USDC faucet does **not** require an account — checked
+directly at faucet.circle.com rather than trusting the earlier note. Just a
+wallet address and a captcha. 20 testnet USDC landed in the orchestrator's
+operator account within minutes.
+
+`resource-server` now prices `/verify` in USDC by default
+(`X402_SETTLEMENT_ASSET=USDC`, `$0.01`/call), switchable back to HBAR via
+one env var — nothing deleted, HBAR settlement is still fully proven and
+still legitimate. `orchestrator`'s x402 client had its spend-control
+`allowedAssets` list extended to include USDC (it was HBAR-only before,
+which would have silently blocked this payment).
+
+**Proven live, not just configured:** a real webhook submission drove a
+real paid `/verify` call, and the Mirror Node shows the actual settlement
+transaction — a `CRYPTOTRANSFER` with `token_id: 0.0.429274`, moving 10,000
+base units ($0.01) from the orchestrator's operator account
+(`0.0.10439799`) to the new pay-to account (`0.0.10478051`),
+`result: SUCCESS`
+(`0.0.7162784-1789139948-706832928`). Independently confirmed the
+receiving account's USDC balance is exactly 10,000 base units afterward.
+Verification itself ran normally end to end (Gemini `APPROVE`), proving the
+whole pipeline still works with the new settlement asset, not just the
+payment step in isolation.
