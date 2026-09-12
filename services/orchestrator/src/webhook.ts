@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { AuditRecord, FormSubmissionPayload, VerificationVerdict, VerifyRequestBody } from "@formdrop/shared";
 import { config } from "./config.js";
 import { fetchWithPayment, httpClient } from "./x402Client.js";
-import { getResponsesForForm, recordResponse, setHcsAudit } from "./db/responses.js";
+import { getResponse, getResponsesForForm, recordResponse, setHcsAudit } from "./db/responses.js";
 import { sendClaimEmail } from "./email.js";
 import { anchorAuditRecord } from "./hcs.js";
 
@@ -24,6 +24,22 @@ function summarizeAnswers(answers: Record<string, string>): string {
  * it's calling here.
  */
 export async function handleFormSubmit(payload: FormSubmissionPayload): Promise<FormSubmitResult> {
+  // A form can be reachable through more than one trigger source at once
+  // (Apps Script's installable webhook AND a registered Forms-API push
+  // watch), and Pub/Sub itself redelivers at least once — so the same
+  // (formId, responseId) can genuinely arrive here twice. Without this
+  // check, both calls would independently pay x402 and send a claim email,
+  // since `recordResponse`'s ON CONFLICT DO NOTHING only dedupes the stored
+  // row, not the payment or the email that happen before it. Doesn't close
+  // a true same-millisecond race between two calls (that would need a
+  // reservation row inserted before payment, not just a read-then-act
+  // check) — real trigger sources aren't that tightly synchronized in
+  // practice, so this is the proportionate fix for the actual failure mode.
+  const existing = await getResponse(payload.formId, payload.responseId);
+  if (existing) {
+    return { verdict: existing.verdict, x402TransactionId: existing.x402TransactionId };
+  }
+
   const priorAnswerTexts = (await getResponsesForForm(payload.formId))
     .slice(-MAX_PRIOR_ANSWERS_FOR_DUPLICATE_CHECK)
     .map((r) => summarizeAnswers(r.payload.answers));
