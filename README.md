@@ -128,7 +128,7 @@ architectural nicety.
 ```
 apps/
   web/            Next.js — creator console + respondent claim page (Selfie Check -> payout)
-  apps-script/    Container-bound Google Apps Script (clasp-managed)
+  apps-script/    Standalone Google Apps Script — watches any number of forms
 services/
   resource-server/  Fastify — x402-gated verification service (the "service" being sold)
   orchestrator/     Fastify — webhook receiver, paying x402 client, HCS anchoring, payouts, email

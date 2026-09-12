@@ -727,3 +727,34 @@ check, so it holds even under concurrent claim requests.
 not a `tsx watch` auto-restart), started a fresh process, and queried
 `GET /forms/:formId/stats` — the form was still there, byte-identical.
 This is the exact failure mode that caused today's live bugs, now closed.
+
+## 2026-09-12 — Apps Script: container-bound to standalone, multi-form
+
+The original `apps/apps-script` (2026-09-09 decision above) was
+container-bound — created from inside one specific Google Form's
+Extensions menu, so its `onFormSubmit` trigger only ever fires for that
+one form. With the creator dashboard now supporting multiple forms per
+creator, that meant copy-pasting the whole script into a new Apps Script
+project for every new form — real toil, and a ceiling on how many forms
+one creator could realistically track.
+
+Considered making it a real Google Workspace Editor Add-on instead (shows
+up under Extensions automatically on every form). Checked Google's own
+docs for this before committing time to it: a personally-installed test
+add-on is registered against specific chosen documents in the "Test
+deployments" dialog, not account-wide — so it still costs one manual step
+per new form, just via a different UI, and true zero-touch account-wide
+install requires Marketplace publishing, which needs a Workspace org with
+admin install rights (not available here). Not worth the larger manifest
+surface for the same per-form cost, days before submission.
+
+Rebuilt instead as one **standalone** script (not bound to any form),
+watching a list of form ids stored in a `FORM_IDS` script property.
+`FormApp.openById()` (needs the full `forms` OAuth scope, not
+`forms.currentonly`, since there's no bound "active form" to fall back
+on) registers a trigger per listed id; the shared `onFormSubmitInstallable`
+handler identifies which form fired via `e.source` — confirmed against
+Apps Script's own trigger-event docs, not assumed — so one project safely
+multiplexes across every registered form. Adding a form is now: append its
+id to `FORM_IDS`, run `syncFormTriggers()` once. No new script project, no
+copy-pasted code, per new form.

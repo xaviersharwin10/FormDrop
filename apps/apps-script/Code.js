@@ -1,28 +1,57 @@
 /**
- * Container-bound Apps Script for the Paid Forms demo form.
+ * Standalone Apps Script — not bound to any single Google Form.
  *
- * Run installTrigger() once (from the Apps Script editor, "Run" button) after
- * binding this script to a form and setting ORCHESTRATOR_WEBHOOK_URL in
- * Script Properties (Project Settings > Script Properties). This must be an
- * installable trigger, not the onFormSubmit(e) simple trigger — simple
- * triggers can't call external services, and we need UrlFetchApp here.
+ * One project, one webhook URL, watching as many forms as you list in the
+ * FORM_IDS script property. Adding a new form never means copying this
+ * script again: append the form's id to FORM_IDS (Project Settings >
+ * Script Properties) and run syncFormTriggers() once.
+ *
+ * Uses FormApp.openById() + the "forms" (not "forms.currentonly") OAuth
+ * scope, since a standalone script has no "active form" of its own — see
+ * appsscript.json.
  */
-function installTrigger() {
-  const form = FormApp.getActiveForm();
-  const already = ScriptApp.getProjectTriggers().some(
-    (t) => t.getHandlerFunction() === "onFormSubmitInstallable" && t.getTriggerSourceId() === form.getId(),
-  );
-  if (already) {
-    Logger.log("onFormSubmitInstallable trigger already installed.");
+
+/**
+ * Reads FORM_IDS and installs an onFormSubmit trigger for any form in the
+ * list that doesn't already have one. Safe to re-run any time — already
+ * registered forms are skipped, not duplicated.
+ */
+function syncFormTriggers() {
+  const formIds = getFormIds_();
+  if (formIds.length === 0) {
+    Logger.log("FORM_IDS script property is empty — nothing to register.");
     return;
   }
-  ScriptApp.newTrigger("onFormSubmitInstallable").forForm(form).onFormSubmit().create();
-  Logger.log("Installed onFormSubmit trigger.");
+
+  const registered = new Set(
+    ScriptApp.getProjectTriggers()
+      .filter((t) => t.getHandlerFunction() === "onFormSubmitInstallable")
+      .map((t) => t.getTriggerSourceId()),
+  );
+
+  formIds.forEach((formId) => {
+    if (registered.has(formId)) {
+      Logger.log("Already watching: " + formId);
+      return;
+    }
+    const form = FormApp.openById(formId);
+    ScriptApp.newTrigger("onFormSubmitInstallable").forForm(form).onFormSubmit().create();
+    Logger.log("Registered: " + formId + " (" + form.getTitle() + ")");
+  });
+}
+
+/** Prints every form this script currently has a submit trigger on. */
+function listRegisteredForms() {
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === "onFormSubmitInstallable")
+    .forEach((t) => Logger.log(t.getTriggerSourceId()));
 }
 
 /**
- * Fires on every form submission (installable trigger — runs as the form
- * owner, per Apps Script's model, which is what we want here).
+ * Fires on every submission to any registered form. The form itself comes
+ * from e.source (not FormApp.getActiveForm(), which only works for
+ * container-bound scripts) — that's what lets one project safely handle
+ * submissions from multiple different forms.
  *
  * @param {GoogleAppsScript.Events.FormsOnFormSubmit} e
  */
@@ -33,7 +62,7 @@ function onFormSubmitInstallable(e) {
     return;
   }
 
-  const form = FormApp.getActiveForm();
+  const form = e.source;
   const response = e.response;
 
   const answers = {};
@@ -60,10 +89,29 @@ function onFormSubmitInstallable(e) {
   Logger.log("Webhook responded with status " + result.getResponseCode());
 }
 
+function getFormIds_() {
+  const raw = PropertiesService.getScriptProperties().getProperty("FORM_IDS");
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+}
+
 function getWebhookUrl_() {
   return PropertiesService.getScriptProperties().getProperty("ORCHESTRATOR_WEBHOOK_URL");
 }
 
 function setWebhookUrl(url) {
   PropertiesService.getScriptProperties().setProperty("ORCHESTRATOR_WEBHOOK_URL", url);
+}
+
+/** Adds one form id to FORM_IDS and registers it in one call. */
+function addForm(formId) {
+  const existing = getFormIds_();
+  if (!existing.includes(formId)) {
+    existing.push(formId);
+    PropertiesService.getScriptProperties().setProperty("FORM_IDS", existing.join(","));
+  }
+  syncFormTriggers();
 }
