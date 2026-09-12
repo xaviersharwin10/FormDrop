@@ -372,9 +372,13 @@ export default function CreatorConsole() {
           <div className="forms-toolbar">
             <h1>Your forms</h1>
             {googleEmail ? (
-              <span className="hint">
-                <CheckIcon size={13} /> Google connected — {googleEmail}
-              </span>
+              <a
+                className="hint"
+                href={creatorId ? googleAuthStartUrl(creatorId) : "#"}
+                title="Click to reconnect or switch Google account"
+              >
+                <CheckIcon size={13} /> Google connected — {googleEmail} (reconnect)
+              </a>
             ) : creatorId ? (
               <a className="detail-header-open-form" href={googleAuthStartUrl(creatorId)}>
                 Connect Google Forms
