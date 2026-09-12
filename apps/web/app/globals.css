@@ -376,26 +376,11 @@ h3 {
 }
 
 .form-tile-action {
-  display: flex;
-  align-items: center;
+  width: 100%;
   justify-content: center;
-  gap: 6px;
   margin-top: 16px;
   padding: 9px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-muted);
-  color: var(--text-primary);
-  font-weight: 600;
   font-size: 13px;
-  cursor: pointer;
-  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
-}
-
-.form-tile-action:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
 }
 
 .new-form-tile {
