@@ -1,10 +1,13 @@
 import { config, requireGoogleFormsConfig } from "./config.js";
 
-// forms.responses.readonly is the actual working scope; userinfo.email is only
-// so we can show "connected as you@gmail.com" in the dashboard — not used for
-// anything Forms-related.
+// forms.responses.readonly reads response data; forms.body.readonly is a
+// SEPARATE scope needed just to read the form's own structure (forms.get —
+// used by getQuestionTitles to map questionId -> title), which
+// forms.responses.readonly does not cover. userinfo.email is only so we can
+// show "connected as you@gmail.com" in the dashboard — not used for anything
+// Forms-related.
 export const GOOGLE_FORMS_OAUTH_SCOPE =
-  "https://www.googleapis.com/auth/forms.responses.readonly https://www.googleapis.com/auth/userinfo.email";
+  "https://www.googleapis.com/auth/forms.responses.readonly https://www.googleapis.com/auth/forms.body.readonly https://www.googleapis.com/auth/userinfo.email";
 
 export function googleFormsRedirectUri(): string {
   return `${config.orchestratorBaseUrl}/auth/google/callback`;
