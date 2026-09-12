@@ -120,3 +120,9 @@ services:
         value: cmtu8v7ob01t40cjsebhg1r39 # NEXT_PUBLIC_ — ships to the browser by design
       - key: NEXT_PUBLIC_ORCHESTRATOR_URL
         value: https://formdrop-orchestrator.onrender.com
+      - key: NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
+        value: 555204835471-8g2dacaovuhoeqtubbet2vqtv3o2jtbj.apps.googleusercontent.com # same client ID as the orchestrator's GOOGLE_FORMS_OAUTH_CLIENT_ID — not secret
+      - key: NEXT_PUBLIC_GOOGLE_PICKER_API_KEY
+        sync: false # Cloud Console -> Credentials -> API key, restricted to this app's origin + https://docs.google.com/*
+      - key: NEXT_PUBLIC_GOOGLE_PICKER_APP_ID
+        sync: false # Cloud project NUMBER (numeric), not the project ID string

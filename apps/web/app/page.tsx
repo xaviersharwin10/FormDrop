@@ -23,6 +23,7 @@ import {
   verifyFunding,
 } from "@/lib/orchestrator";
 import { hashscanTransactionUrl } from "@/lib/hashscan";
+import { openGoogleFormPicker } from "@/lib/googlePicker";
 import { HashChip } from "@/components/HashChip";
 import { LogoMark, Wordmark } from "@/components/Logo";
 import {
@@ -126,6 +127,18 @@ export default function CreatorConsole() {
       setRegisteringWatch(false);
     }
   }, [formId, creatorId]);
+
+  const handlePickFromDrive = useCallback(() => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID;
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PICKER_API_KEY;
+    const appId = process.env.NEXT_PUBLIC_GOOGLE_PICKER_APP_ID;
+    if (!clientId || !apiKey || !appId) {
+      setError("Google Picker isn't configured yet.");
+      return;
+    }
+    setError(null);
+    openGoogleFormPicker({ clientId, apiKey, appId }, setFormId, setError);
+  }, []);
 
   const refreshStats = useCallback(async (id: string) => {
     try {
@@ -552,13 +565,21 @@ export default function CreatorConsole() {
               {(showEditor || !stats) && (
                 <div className="card">
                   <label htmlFor="formId">Google Form ID</label>
-                  <input
-                    id="formId"
-                    value={formId}
-                    onChange={(e) => setFormId(e.target.value)}
-                    disabled={!!stats}
-                    placeholder="1FAIpQLS…"
-                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      id="formId"
+                      value={formId}
+                      onChange={(e) => setFormId(e.target.value)}
+                      disabled={!!stats}
+                      placeholder="1FAIpQLS…"
+                      style={{ flex: 1 }}
+                    />
+                    {!stats && (
+                      <button type="button" className="secondary" onClick={handlePickFromDrive}>
+                        Pick from Drive
+                      </button>
+                    )}
+                  </div>
 
                   <label htmlFor="price">Price per approved response (HBAR)</label>
                   <input

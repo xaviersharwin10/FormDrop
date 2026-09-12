@@ -406,6 +406,39 @@ viewform link, and watched it arrive at `/webhooks/forms-push` and settle
 through the full pipeline. Delivery was instantaneous, not the "usually
 within minutes" Google's own docs hedge on.
 
+### Google Picker (pick a form from Drive, no manual ID)
+
+The **Pick from Drive** button next to the Form ID field opens a real
+Google Picker instead of requiring a creator to copy/paste a raw form ID
+out of a URL.
+
+1. In the same Cloud project, enable the **Google Picker API** (separate
+   from the Forms/Drive APIs above) in APIs & Services → Library.
+2. On the **same** OAuth client used for "Connect Google Forms" above, add
+   this app's URL to its **Authorized JavaScript origins** (e.g.
+   `https://formdrop-web.onrender.com`, and `http://localhost:3000` for
+   local dev) — a separate setting from the redirect URI the server-side
+   flow uses, since the Picker needs an access token directly in the
+   browser (via Google Identity Services' token client), not a server-side
+   exchange.
+3. Create an **API key** (Credentials → Create credentials → API key).
+   Restrict it (Websites) to this app's origin **and**
+   `https://docs.google.com/*` — the Picker itself renders inside an
+   iframe hosted on `docs.google.com`, and omitting that origin makes every
+   picker call fail with "API developer key is invalid."
+4. Add `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` (same value as the
+   orchestrator's `GOOGLE_FORMS_OAUTH_CLIENT_ID` — client IDs aren't
+   secret), `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY`, and
+   `NEXT_PUBLIC_GOOGLE_PICKER_APP_ID` (the Cloud project's numeric
+   **project number**, not the project ID string) to `apps/web/.env.local`.
+
+Requests only the `drive.file` scope — Google's own Picker guidance
+recommends it specifically for this combination: it lets a user browse and
+pick from *all* their files in the Picker UI, while the app only ever
+gains access to whichever file they actually select, not their whole
+Drive. The picker view is filtered to `application/vnd.google-apps.form`
+so only Forms show up, never other Drive file types.
+
 ### Card funding (Stripe, test mode)
 
 1. Grab a free test-mode secret key at
