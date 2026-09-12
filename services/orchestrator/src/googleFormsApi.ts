@@ -1,7 +1,6 @@
 import { requireGoogleFormsConfig } from "./config.js";
 
 const FORMS_API_BASE = "https://forms.googleapis.com/v1";
-const FORMS_API_BETA_BASE = "https://forms.googleapis.com/v1beta";
 
 async function formsFetch(url: string, accessToken: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(url, {
@@ -55,7 +54,7 @@ export interface WatchResult {
 
 export async function createResponsesWatch(formId: string, accessToken: string): Promise<WatchResult> {
   const { googlePubsubTopic } = requireGoogleFormsConfig();
-  const res = await formsFetch(`${FORMS_API_BETA_BASE}/forms/${encodeURIComponent(formId)}/watches`, accessToken, {
+  const res = await formsFetch(`${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/watches`, accessToken, {
     method: "POST",
     body: JSON.stringify({
       watch: {
@@ -73,7 +72,7 @@ export async function renewResponsesWatch(
   accessToken: string,
 ): Promise<WatchResult> {
   const res = await formsFetch(
-    `${FORMS_API_BETA_BASE}/forms/${encodeURIComponent(formId)}/watches/${encodeURIComponent(watchId)}:renew`,
+    `${FORMS_API_BASE}/forms/${encodeURIComponent(formId)}/watches/${encodeURIComponent(watchId)}:renew`,
     accessToken,
     { method: "POST" },
   );
