@@ -19,6 +19,16 @@ import { config } from "./config.js";
 import { claimAction, ClaimError, processClaim } from "./claim.js";
 import { getRpSignature } from "./world.js";
 import type { IdKitVerifyPayload } from "./world.js";
+import { exchangeCodeForTokens, getAccessTokenFromRefreshToken, getGoogleEmail, googleFormsAuthUrl } from "./googleFormsAuth.js";
+import { createResponsesWatch, getQuestionTitles, renewResponsesWatch } from "./googleFormsApi.js";
+import {
+  getAllFormWatches,
+  getFormWatch,
+  getGoogleAccount,
+  upsertFormWatch,
+  upsertGoogleAccount,
+} from "./db/googleForms.js";
+import { handleFormsPushNotification, verifyPubSubPushToken } from "./googleFormsPush.js";
 
 /**
  * The full stats shape the web app's `FormStats` type expects — computed
@@ -116,6 +126,135 @@ export function buildServer() {
       creatorId: typeof body.creatorId === "string" && body.creatorId !== "" ? body.creatorId : null,
     });
     return reply.send(await buildStats(formConfig));
+  });
+
+  // ---------- Google Forms push-notification onboarding (no Apps Script) ----------
+  // Lets any creator connect their own Google account and register a form
+  // for real-time response notifications via the Forms API + Pub/Sub,
+  // instead of installing/registering our Apps Script project. See
+  // specs/DECISIONS.md for why this exists alongside, not instead of, the
+  // Apps Script path.
+
+  app.get("/auth/google/start", async (request, reply) => {
+    const { creatorId } = request.query as { creatorId?: string };
+    if (!creatorId) return reply.status(400).send({ error: "creatorId is required" });
+    return reply.redirect(googleFormsAuthUrl(creatorId));
+  });
+
+  app.get("/auth/google/callback", async (request, reply) => {
+    const { code, state, error } = request.query as { code?: string; state?: string; error?: string };
+    if (error || !code || !state) {
+      return reply.redirect(`${config.webAppUrl}/?googleConnectError=${encodeURIComponent(error ?? "missing_code")}`);
+    }
+    try {
+      const tokens = await exchangeCodeForTokens(code);
+      if (!tokens.refresh_token) {
+        // Already connected before and Google didn't re-issue one — the
+        // stored one is still valid, so this isn't actually an error case,
+        // but there's nothing new to save either.
+        return reply.redirect(`${config.webAppUrl}/?googleConnected=1`);
+      }
+      const googleEmail = await getGoogleEmail(tokens.access_token);
+      await upsertGoogleAccount({ creatorId: state, googleEmail, refreshToken: tokens.refresh_token });
+      return reply.redirect(`${config.webAppUrl}/?googleConnected=1`);
+    } catch (err) {
+      request.log.error(err, "Google Forms OAuth callback failed");
+      return reply.redirect(`${config.webAppUrl}/?googleConnectError=exchange_failed`);
+    }
+  });
+
+  app.get("/creators/:creatorId/google-account", async (request, reply) => {
+    const { creatorId } = request.params as { creatorId: string };
+    const account = await getGoogleAccount(creatorId);
+    return reply.send({ connected: !!account, googleEmail: account?.googleEmail ?? null });
+  });
+
+  app.post("/forms/:formId/watch", async (request, reply) => {
+    const { formId } = request.params as { formId: string };
+    const { creatorId } = request.body as { creatorId?: string };
+    if (!creatorId) return reply.status(400).send({ error: "creatorId is required" });
+
+    const account = await getGoogleAccount(creatorId);
+    if (!account) {
+      return reply.status(400).send({ error: "Connect a Google account first (GET /auth/google/start)" });
+    }
+
+    try {
+      const accessToken = await getAccessTokenFromRefreshToken(account.refreshToken);
+      // Confirms this Google account can actually read the form before
+      // registering a watch against it — a clearer error than a mismatched
+      // permission failure showing up later, inside a webhook Pub/Sub retries.
+      await getQuestionTitles(formId, accessToken);
+      const watch = await createResponsesWatch(formId, accessToken);
+      const registered = await upsertFormWatch({
+        formId,
+        creatorId,
+        watchId: watch.id,
+        expireTimeIso: watch.expireTime,
+        lastFetchedIso: new Date().toISOString(),
+      });
+      return reply.send(registered);
+    } catch (err) {
+      request.log.error(err, "createResponsesWatch failed");
+      return reply.status(502).send({ error: (err as Error).message });
+    }
+  });
+
+  app.get("/forms/:formId/watch", async (request, reply) => {
+    const { formId } = request.params as { formId: string };
+    const watch = await getFormWatch(formId);
+    return reply.send({ watching: !!watch, expireTimeIso: watch?.expireTimeIso ?? null });
+  });
+
+  app.post("/webhooks/forms-push", async (request, reply) => {
+    try {
+      await verifyPubSubPushToken(request.headers.authorization);
+    } catch (err) {
+      request.log.error(err, "Pub/Sub push token verification failed");
+      return reply.status(401).send({ error: "invalid push token" });
+    }
+
+    try {
+      await handleFormsPushNotification(request.body as Parameters<typeof handleFormsPushNotification>[0]);
+    } catch (err) {
+      request.log.error(err, "handleFormsPushNotification failed");
+      // A 5xx tells Pub/Sub to retry the delivery — appropriate for a
+      // transient failure (e.g. our DB briefly unreachable), and safe to
+      // retry given handleFormsPushNotification's own idempotency.
+      return reply.status(500).send({ error: "processing failed" });
+    }
+    return reply.status(204).send();
+  });
+
+  // Renews every watch expiring within 2 days — watches.renew resets the
+  // 7-day clock. No auth: worst case an outsider triggers extra renewals of
+  // already-legitimate watches, which costs nothing and leaks nothing.
+  // Intended to be hit by a scheduled ping (same pattern as the existing
+  // keepalive cron jobs), at least once a day.
+  app.post("/internal/renew-watches", async (request, reply) => {
+    const watches = await getAllFormWatches();
+    const twoDaysFromNow = Date.now() + 2 * 24 * 60 * 60 * 1000;
+    let renewed = 0;
+    for (const watch of watches) {
+      if (new Date(watch.expireTimeIso).getTime() > twoDaysFromNow) continue;
+      try {
+        const account = await getGoogleAccount(watch.creatorId);
+        if (!account) continue;
+        const accessToken = await getAccessTokenFromRefreshToken(account.refreshToken);
+        const renewedWatch = await renewResponsesWatch(watch.formId, watch.watchId, accessToken);
+        await upsertFormWatch({
+          formId: watch.formId,
+          creatorId: watch.creatorId,
+          watchId: renewedWatch.id,
+          expireTimeIso: renewedWatch.expireTime,
+          lastFetchedIso: watch.lastFetchedIso,
+        });
+        renewed++;
+      } catch (err) {
+        request.log.error(err, `Failed to renew watch for form ${watch.formId}`);
+      }
+    }
+    return reply.send({ checked: watches.length, renewed });
   });
 
   app.get("/creators/:creatorId/forms", async (request, reply) => {

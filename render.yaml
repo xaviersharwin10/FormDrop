@@ -94,6 +94,18 @@ services:
         sync: false # secret — printed by `pnpm gmail:setup-oauth`, run once locally
       - key: GMAIL_SENDER_EMAIL
         sync: false # the Gmail address authorized via gmail:setup-oauth — not a secret, but has no fixed public value
+      - key: ORCHESTRATOR_BASE_URL
+        value: https://formdrop-orchestrator.onrender.com
+      - key: GOOGLE_FORMS_OAUTH_CLIENT_ID
+        sync: false # secret — Google Cloud Console > Credentials > OAuth client (Web application), redirect URI = <ORCHESTRATOR_BASE_URL>/auth/google/callback
+      - key: GOOGLE_FORMS_OAUTH_CLIENT_SECRET
+        sync: false # secret — from the same OAuth client
+      - key: GOOGLE_PUBSUB_TOPIC
+        sync: false # e.g. projects/<gcp-project-id>/topics/formdrop-form-responses — not secret, but project-specific
+      - key: GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL
+        sync: false # the service account chosen when creating the push subscription's OIDC auth
+      - key: GOOGLE_PUBSUB_PUSH_AUDIENCE
+        sync: false # defaults to the push endpoint URL unless a custom audience was set on the subscription
 
   - type: web
     name: formdrop-web

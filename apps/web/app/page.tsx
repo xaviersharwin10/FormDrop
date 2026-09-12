@@ -10,10 +10,14 @@ import {
   fundPotFromPrivyWallet,
   getCreatorPrivyWallet,
   getFormsForCreator,
+  getFormWatchStatus,
+  getGoogleAccountStatus,
   getResponses,
   getStats,
   getTreasuryAccountId,
+  googleAuthStartUrl,
   hbarToTinybar,
+  registerFormWatch,
   saveFormConfig,
   tinybarToHbar,
   verifyFunding,
@@ -55,6 +59,11 @@ export default function CreatorConsole() {
   const [maxResponses, setMaxResponses] = useState(300);
   const [showEditor, setShowEditor] = useState(true);
 
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  const [googleConnectBanner, setGoogleConnectBanner] = useState<"connected" | "error" | null>(null);
+  const [watchExpireTimeIso, setWatchExpireTimeIso] = useState<string | null>(null);
+  const [registeringWatch, setRegisteringWatch] = useState(false);
+
   const [stats, setStats] = useState<FormStats | null>(null);
   const [responses, setResponses] = useState<FormResponseSummary[]>([]);
   const [treasury, setTreasury] = useState<{
@@ -89,6 +98,35 @@ export default function CreatorConsole() {
     if (authenticated && creatorId) loadForms(creatorId);
   }, [authenticated, creatorId, loadForms]);
 
+  useEffect(() => {
+    if (!creatorId) return;
+    getGoogleAccountStatus(creatorId)
+      .then((status) => setGoogleEmail(status.googleEmail))
+      .catch(() => setGoogleEmail(null));
+  }, [creatorId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("googleConnected")) setGoogleConnectBanner("connected");
+    else if (params.has("googleConnectError")) setGoogleConnectBanner("error");
+    else return;
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
+  const handleEnableNotifications = useCallback(async () => {
+    if (!formId || !creatorId) return;
+    setRegisteringWatch(true);
+    setError(null);
+    try {
+      const watch = await registerFormWatch(formId, creatorId);
+      setWatchExpireTimeIso(watch.expireTimeIso);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRegisteringWatch(false);
+    }
+  }, [formId, creatorId]);
+
   const refreshStats = useCallback(async (id: string) => {
     try {
       setStats(await getStats(id));
@@ -114,10 +152,14 @@ export default function CreatorConsole() {
     setTreasury(null);
     setPrivyWalletAddress(null);
     setFundingTxId("");
+    setWatchExpireTimeIso(null);
     setError(null);
     setView("detail");
     getResponses(form.formId).then(setResponses).catch(() => {});
     getTreasuryAccountId(form.formId).then(setTreasury).catch(() => {});
+    getFormWatchStatus(form.formId)
+      .then((w) => setWatchExpireTimeIso(w.expireTimeIso))
+      .catch(() => {});
   }, []);
 
   const startNewForm = useCallback(() => {
@@ -329,7 +371,28 @@ export default function CreatorConsole() {
         <div className="shell fade-in-up">
           <div className="forms-toolbar">
             <h1>Your forms</h1>
+            {googleEmail ? (
+              <span className="hint">
+                <CheckIcon size={13} /> Google connected — {googleEmail}
+              </span>
+            ) : creatorId ? (
+              <a className="detail-header-open-form" href={googleAuthStartUrl(creatorId)}>
+                Connect Google Forms
+                <ArrowRightIcon size={12} />
+              </a>
+            ) : null}
           </div>
+          {googleConnectBanner === "connected" && (
+            <p className="hint" style={{ marginBottom: 14 }}>
+              <CheckIcon size={13} /> Google account connected — you can now enable instant notifications on any
+              form below without installing Apps Script.
+            </p>
+          )}
+          {googleConnectBanner === "error" && (
+            <p className="error" style={{ marginBottom: 14 }}>
+              <WarningIcon size={13} /> Couldn&rsquo;t connect your Google account — please try again.
+            </p>
+          )}
           {loadingForms ? (
             <div className="forms-grid">
               {[0, 1, 2].map((i) => (
@@ -444,6 +507,32 @@ export default function CreatorConsole() {
               </a>
             )}
           </div>
+
+          {stats && (
+            <div className="card notifications-card">
+              {watchExpireTimeIso ? (
+                <p className="hint">
+                  <BoltIcon size={14} /> Instant notifications active — no Apps Script needed for this form.
+                </p>
+              ) : googleEmail ? (
+                <>
+                  <p className="hint">
+                    Get responses the instant they're submitted, without installing anything on this form —
+                    powered by your connected Google account.
+                  </p>
+                  <button onClick={handleEnableNotifications} disabled={registeringWatch}>
+                    {registeringWatch && <span className="spinner" />}
+                    {registeringWatch ? "Enabling…" : "Enable instant notifications"}
+                  </button>
+                </>
+              ) : (
+                <p className="hint">
+                  <a href={creatorId ? googleAuthStartUrl(creatorId) : "#"}>Connect your Google account</a> to
+                  enable instant notifications for this form without installing Apps Script.
+                </p>
+              )}
+            </div>
+          )}
 
           {view === "new" || !stats?.funded ? (
             <>

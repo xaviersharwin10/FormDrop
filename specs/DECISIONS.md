@@ -799,3 +799,68 @@ to mint a refresh token; `email.ts` exchanges it for a short-lived access
 token per send and POSTs a base64url-encoded RFC 2822 message. `nodemailer`
 and `@types/nodemailer` removed from `services/orchestrator/package.json`
 entirely rather than left unused.
+
+## 2026-09-12/13 — Google Forms push notifications: a second onboarding path, alongside Apps Script
+
+The 2026-09-12 entry above rebuilt the Apps Script watcher as one
+standalone script — still real toil per new form (edit `FORM_IDS`, run a
+function). For anyone viewing this project to self-serve try it — the
+actual goal, not just reducing our own toil — that's still too much: it
+needs the Apps Script editor, authorization, and knowing this project's
+specific setup.
+
+Real alternative, confirmed against Google's own docs before building
+(not assumed): the Forms API's `watches` resource (v1beta) delivers
+`RESPONSES` event notifications to a Cloud Pub/Sub topic, with zero Apps
+Script involvement. A creator connects their Google account once via
+normal OAuth (scope: `forms.responses.readonly` — confirmed sufficient on
+its own, not the broader `drive` scope shown in Google's own sample code),
+then registering a new form is one API call, no code.
+
+**Deliberately built as an addition, not a replacement.** The existing,
+proven, already-funded demo form keeps using its Apps Script trigger
+untouched — nothing about its pipeline changed. This is a new, parallel
+front door (`POST /webhooks/forms-push`) feeding the exact same
+`handleFormSubmit` pipeline every other trigger source uses, so there's
+zero duplicated business logic and zero risk to what already works.
+
+**Real tradeoffs, weighed before committing, not glossed over:**
+- Google's own docs hedge on latency ("usually within minutes," elsewhere
+  "typically... a few seconds"), and there's a live Google Issue Tracker
+  bug specifically titled "Push notifications are delayed." Apps Script's
+  trigger is provably instant by comparison. Decided to build it anyway,
+  given the explicit goal (self-serve trial by anyone) outweighs the
+  Apps-Script path's latency guarantee for *this* onboarding route
+  specifically — the proven, instant path stays available for the demo
+  form itself.
+- A `Watch` expires after 7 days and must be renewed (`POST
+  /internal/renew-watches`, meant to be pinged by a scheduled job — same
+  pattern as the existing keepalive crons). An unverified OAuth app's
+  refresh tokens also expire after 7 days in "Testing" publishing status;
+  flipping to "In production" (still unverified — full verification is a
+  multi-week process) removes that cap in exchange for every connecting
+  user seeing a "Google hasn't verified this app" warning they click
+  through once. Chosen over staying in Testing mode specifically because
+  Testing caps connections to 100 manually-added test users — the opposite
+  of "anyone who views this can try it."
+
+**New surface, kept isolated:** `googleFormsAuth.ts` (OAuth), `googleFormsApi.ts`
+(the actual Forms API calls — `forms.get` for question titles,
+`forms.responses.list` with a `timestamp >` filter so a notification only
+pulls what's new, `watches.create`/`watches.renew`), `googleFormsPush.ts`
+(verifies the Pub/Sub push's signed OIDC token via `google-auth-library`'s
+`OAuth2Client.verifyIdToken` before trusting a payload — a forged POST to
+a guessed public URL can't masquerade as a real notification). Two new
+tables, `google_accounts` and `form_watches` — migrated onto the same live
+Supabase database already backing `forms`/`responses`, confirmed present
+via a direct `information_schema.tables` query, not assumed from the
+migration script's exit code alone.
+
+**A genuine reliability property, not just idempotency by luck:** the
+push handler only advances a form's fetch watermark past a batch of
+responses if every one of them was actually handled successfully — a
+mid-batch failure (e.g. a transient payment error) leaves the watermark
+where it was, so the next notification re-fetches (and safely no-ops on,
+via the same `responses` table primary-key check every trigger source
+already relies on) whatever already succeeded, while the failure itself
+gets a real retry instead of being silently skipped forever.

@@ -77,4 +77,29 @@ export const config = {
    * make "pay with a card" a coherent amount to charge. Not a real exchange rate.
    */
   usdCentsPerHbar: Number(process.env.USD_CENTS_PER_HBAR ?? 100),
+
+  /** This service's own public base URL — needed to build the OAuth redirect_uri. */
+  orchestratorBaseUrl: process.env.ORCHESTRATOR_BASE_URL ?? `http://localhost:${process.env.PORT ?? 4002}`,
+
+  /**
+   * A separate OAuth client from googleOAuthClientId/Secret above — that
+   * one is a "Desktop app" client using the loopback flow (gmailSetupOAuth.ts,
+   * a one-time local script). This one is a "Web application" client with a
+   * real HTTPS redirect_uri, since creators authorize this one live from
+   * their browser via a "Connect Google Forms" button, not a one-time local
+   * setup script. See googleFormsAuth.ts.
+   */
+  googleFormsOAuthClientId: requireEnv("GOOGLE_FORMS_OAUTH_CLIENT_ID"),
+  googleFormsOAuthClientSecret: requireEnv("GOOGLE_FORMS_OAUTH_CLIENT_SECRET"),
+
+  /** Full Pub/Sub topic name (projects/<id>/topics/<name>) that forms.watches.create publishes to. */
+  googlePubsubTopic: requireEnv("GOOGLE_PUBSUB_TOPIC"),
+  /**
+   * The push subscription's OIDC-authenticated service account email and
+   * intended audience — both checked against the signed token Google
+   * attaches to every push request, so a forged POST to our push endpoint
+   * can't masquerade as a real Forms notification. See googleFormsPush.ts.
+   */
+  googlePubsubPushServiceAccountEmail: requireEnv("GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL"),
+  googlePubsubPushAudience: requireEnv("GOOGLE_PUBSUB_PUSH_AUDIENCE"),
 };

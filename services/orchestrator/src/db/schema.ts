@@ -52,4 +52,26 @@ CREATE TABLE IF NOT EXISTS used_nullifiers (
   used_at_iso TEXT NOT NULL DEFAULT now()::text,
   PRIMARY KEY (nullifier, action)
 );
+
+-- One connected Google account per creator, used to call the Forms API on
+-- their behalf (creating watches, fetching responses) without any Apps
+-- Script install on their side.
+CREATE TABLE IF NOT EXISTS google_accounts (
+  creator_id TEXT PRIMARY KEY,
+  google_email TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  connected_at_iso TEXT NOT NULL
+);
+
+-- One active push-notification watch per form. last_fetched_iso is the
+-- high-water mark passed to forms.responses.list's timestamp filter, so a
+-- notification only pulls what's actually new.
+CREATE TABLE IF NOT EXISTS form_watches (
+  form_id TEXT PRIMARY KEY,
+  creator_id TEXT NOT NULL,
+  watch_id TEXT NOT NULL,
+  expire_time_iso TEXT NOT NULL,
+  last_fetched_iso TEXT NOT NULL,
+  created_at_iso TEXT NOT NULL
+);
 `;

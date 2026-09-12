@@ -158,3 +158,28 @@ export function tinybarToHbar(tinybar: string): string {
 export function hbarToTinybar(hbar: string): string {
   return String(BigInt(Math.round(Number(hbar) * 1e8)));
 }
+
+/** Full URL to redirect the browser to for Google's OAuth consent screen — not a fetch, a navigation target. */
+export function googleAuthStartUrl(creatorId: string): string {
+  return `${BASE_URL}/auth/google/start?creatorId=${encodeURIComponent(creatorId)}`;
+}
+
+export function getGoogleAccountStatus(creatorId: string) {
+  return fetch(`${BASE_URL}/creators/${encodeURIComponent(creatorId)}/google-account`).then((res) =>
+    asJson<{ connected: boolean; googleEmail: string | null }>(res),
+  );
+}
+
+export function registerFormWatch(formId: string, creatorId: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/watch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ creatorId }),
+  }).then((res) => asJson<{ formId: string; watchId: string; expireTimeIso: string }>(res));
+}
+
+export function getFormWatchStatus(formId: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/watch`).then((res) =>
+    asJson<{ watching: boolean; expireTimeIso: string | null }>(res),
+  );
+}
