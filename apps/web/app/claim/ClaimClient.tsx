@@ -15,6 +15,7 @@ import {
 import { hashscanAccountUrl, hashscanTransactionUrl } from "@/lib/hashscan";
 import { HashChip } from "@/components/HashChip";
 import { Wordmark } from "@/components/Logo";
+import { CheckIcon, CrossIcon, WarningIcon } from "@/components/Icons";
 
 export function ClaimClient() {
   const params = useSearchParams();
@@ -52,11 +53,13 @@ export function ClaimClient() {
   if (!formId || !responseId) {
     return (
       <div className="claim-shell">
-        <div className="claim-card card">
+        <div className="claim-card card fade-in-up">
           <div className="claim-brand">
             <Wordmark />
           </div>
-          <div className="status-icon">⚠</div>
+          <div className="status-icon">
+            <WarningIcon size={26} />
+          </div>
           <p className="claim-subtext" style={{ marginBottom: 0 }}>
             This link is missing its form or response reference. Ask the form creator for the exact link
             from their claim email.
@@ -68,14 +71,16 @@ export function ClaimClient() {
 
   return (
     <div className="claim-shell">
-      <div className="claim-card">
+      <div className="claim-card fade-in-up">
         <div className="claim-brand">
           <Wordmark />
         </div>
 
         {result ? (
           <div className="card">
-            <div className="success-icon">✓</div>
+            <div className="success-icon success-icon-pop">
+              <CheckIcon size={28} />
+            </div>
             <h1 className="claim-headline">You&rsquo;ve been paid</h1>
             <p className="claim-subtext">The payout settled on Hedera testnet — here&rsquo;s the proof.</p>
             <div className="result-row">
@@ -90,7 +95,9 @@ export function ClaimClient() {
           </div>
         ) : status?.claimed ? (
           <div className="card">
-            <div className="status-icon">✓</div>
+            <div className="status-icon">
+              <CheckIcon size={24} />
+            </div>
             <h1 className="claim-headline">Already claimed</h1>
             <p className="claim-subtext" style={{ marginBottom: 0 }}>
               This payout was already sent. Each approved response can only be claimed once.
@@ -98,7 +105,9 @@ export function ClaimClient() {
           </div>
         ) : status && status.decision !== "APPROVE" ? (
           <div className="card">
-            <div className="status-icon">✕</div>
+            <div className="status-icon">
+              <CrossIcon size={24} />
+            </div>
             <h1 className="claim-headline">Not approved this time</h1>
             <p className="claim-subtext" style={{ marginBottom: 0 }}>
               This response wasn&rsquo;t approved for payout by the review agent.
@@ -120,15 +129,21 @@ export function ClaimClient() {
 
             <div className="reassurance-list">
               <div className="reassurance-item">
-                <span className="check-icon">✓</span>
+                <span className="check-icon">
+                  <CheckIcon size={10} />
+                </span>
                 Your wallet is created automatically the first time you claim
               </div>
               <div className="reassurance-item">
-                <span className="check-icon">✓</span>
+                <span className="check-icon">
+                  <CheckIcon size={10} />
+                </span>
                 World ID only proves you&rsquo;re a unique human — it doesn&rsquo;t share your identity
               </div>
               <div className="reassurance-item">
-                <span className="check-icon">✓</span>
+                <span className="check-icon">
+                  <CheckIcon size={10} />
+                </span>
                 Funds arrive within seconds of a successful check
               </div>
             </div>
@@ -137,7 +152,12 @@ export function ClaimClient() {
               {starting && <span className="spinner" />}
               {starting ? "Preparing…" : "Claim my payout"}
             </button>
-            {error && <p className="error">⚠ {error}</p>}
+            {error && (
+              <p className="error">
+                <WarningIcon size={13} />
+                {error}
+              </p>
+            )}
 
             {rpBundle && (
               <IDKitRequestWidget

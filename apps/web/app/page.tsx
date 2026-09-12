@@ -21,6 +21,7 @@ import {
 import { hashscanTransactionUrl } from "@/lib/hashscan";
 import { HashChip } from "@/components/HashChip";
 import { LogoMark, Wordmark } from "@/components/Logo";
+import { ArrowLeftIcon, InboxIcon, PlusIcon, WarningIcon } from "@/components/Icons";
 
 function initials(input: string): string {
   const at = input.indexOf("@");
@@ -231,11 +232,12 @@ export default function CreatorConsole() {
 
       {!ready ? (
         <div className="shell">
-          <p className="hint">Loading…</p>
+          <div className="skeleton-block" style={{ width: 220, height: 32, marginBottom: 12 }} />
+          <div className="skeleton-block" style={{ width: 420, height: 16 }} />
         </div>
       ) : !authenticated ? (
         <>
-          <div className="shell">
+          <div className="shell fade-in-up">
             <div className="hero">
               <div className="hero-inner">
                 <span className="hero-eyebrow">Built on Hedera · Privy · World ID</span>
@@ -295,22 +297,33 @@ export default function CreatorConsole() {
           </div>
         </>
       ) : view === "list" ? (
-        <div className="shell">
+        <div className="shell fade-in-up">
           <div className="forms-toolbar">
             <h1>Your forms</h1>
           </div>
           {loadingForms ? (
-            <p className="hint">Loading your forms…</p>
+            <div className="forms-grid">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="form-tile skeleton-tile">
+                  <div className="skeleton-block" style={{ width: 70, height: 20, borderRadius: 999 }} />
+                  <div className="skeleton-block" style={{ width: "90%", height: 14, margin: "14px 0" }} />
+                  <div className="skeleton-block" style={{ width: "60%", height: 26 }} />
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="forms-grid">
               <button className="new-form-tile" onClick={startNewForm}>
-                <span className="plus-icon">+</span>
+                <span className="plus-icon">
+                  <PlusIcon size={16} />
+                </span>
                 New form
               </button>
-              {forms?.map((f) => (
+              {forms?.map((f, i) => (
                 <div
                   key={f.formId}
-                  className="form-tile"
+                  className="form-tile fade-in-up"
+                  style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
                   onClick={() => openForm(f)}
                   onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openForm(f)}
                   role="button"
@@ -359,11 +372,12 @@ export default function CreatorConsole() {
           )}
         </div>
       ) : (
-        <div className="shell">
+        <div className="shell fade-in-up">
           <div className="detail-header">
             <div className="detail-header-left">
               <button className="ghost" onClick={backToList}>
-                ← Your forms
+                <ArrowLeftIcon size={13} />
+                Your forms
               </button>
               {stats && (
                 <>
@@ -422,7 +436,12 @@ export default function CreatorConsole() {
                     {saving && <span className="spinner" />}
                     {saving ? "Saving…" : stats ? "Update parameters" : "Save parameters"}
                   </button>
-                  {error && <p className="error">⚠ {error}</p>}
+                  {error && (
+                    <p className="error">
+                      <WarningIcon size={13} />
+                      {error}
+                    </p>
+                  )}
                 </div>
               )}
             </>
@@ -542,7 +561,12 @@ export default function CreatorConsole() {
                         </button>
                       </>
                     )}
-                    {error && <p className="error">⚠ {error}</p>}
+                    {error && (
+                    <p className="error">
+                      <WarningIcon size={13} />
+                      {error}
+                    </p>
+                  )}
                   </div>
                 </>
               )}
@@ -589,7 +613,7 @@ export default function CreatorConsole() {
               <div className="card">
                 {responses.length === 0 ? (
                   <div className="empty-state">
-                    <div className="empty-icon">○</div>
+                    <InboxIcon size={30} className="empty-icon" />
                     No responses yet — they&rsquo;ll show up here the instant one comes in.
                   </div>
                 ) : (

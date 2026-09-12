@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CheckIcon, CopyIcon } from "./Icons";
 
 function truncate(value: string, head = 8, tail = 6): string {
   if (value.length <= head + tail + 3) return value;
@@ -31,7 +32,7 @@ export function HashChip({ value, href, label }: { value: string; href: string; 
           }
         }}
       >
-        {copied ? "✓" : "⧉"}
+        {copied ? <CheckIcon size={11} /> : <CopyIcon size={11} />}
       </button>
     </span>
   );
