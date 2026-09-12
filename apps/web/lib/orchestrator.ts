@@ -67,7 +67,7 @@ export function createFundingCheckoutSession(formId: string, successUrl: string,
 
 export function getCreatorPrivyWallet(formId: string) {
   return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/privy-wallet`).then((res) =>
-    asJson<{ address: string }>(res),
+    asJson<{ address: string; balanceTinybar: string }>(res),
   );
 }
 

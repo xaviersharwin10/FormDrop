@@ -55,6 +55,8 @@ export default function CreatorConsole() {
   const [fundingMethod, setFundingMethod] = useState<"card" | "crypto" | "privy">("card");
   const [cryptoAsset, setCryptoAsset] = useState<FundingAsset>("HBAR");
   const [privyWalletAddress, setPrivyWalletAddress] = useState<string | null>(null);
+  const [privyWalletBalanceTinybar, setPrivyWalletBalanceTinybar] = useState<string | null>(null);
+  const [checkingBalance, setCheckingBalance] = useState(false);
   const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
@@ -181,9 +183,25 @@ export default function CreatorConsole() {
   useEffect(() => {
     if (fundingMethod !== "privy" || !formId || privyWalletAddress) return;
     getCreatorPrivyWallet(formId)
-      .then((wallet) => setPrivyWalletAddress(wallet.address))
+      .then((wallet) => {
+        setPrivyWalletAddress(wallet.address);
+        setPrivyWalletBalanceTinybar(wallet.balanceTinybar);
+      })
       .catch((err) => setError((err as Error).message));
   }, [fundingMethod, formId, privyWalletAddress]);
+
+  const refreshPrivyWalletBalance = useCallback(async () => {
+    if (!formId) return;
+    setCheckingBalance(true);
+    try {
+      const wallet = await getCreatorPrivyWallet(formId);
+      setPrivyWalletBalanceTinybar(wallet.balanceTinybar);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCheckingBalance(false);
+    }
+  }, [formId]);
 
   const handlePayWithCard = useCallback(async () => {
     setCheckingOut(true);
@@ -494,13 +512,57 @@ export default function CreatorConsole() {
                     ) : fundingMethod === "privy" ? (
                       <>
                         <p className="hint">
-                          A Privy-custodied wallet, provisioned just for this form. Send it{" "}
+                          A Privy-custodied wallet, provisioned just for this form — separate from your own
+                          login wallet, since we hold no key of yours. Send it{" "}
                           <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> from a testnet faucet or
                           wallet of your own, then fund the pot with one click — the transfer out of this
                           wallet is authorized by a live Privy signature, not a key we hold ourselves.
                         </p>
                         <p className="mono">{privyWalletAddress ?? "Loading…"}</p>
-                        <button onClick={handleFundWithPrivy} disabled={fundingWithPrivy || !privyWalletAddress}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginTop: 6,
+                            marginBottom: 14,
+                          }}
+                        >
+                          <span className="hint" style={{ margin: 0 }}>
+                            Balance:{" "}
+                            <strong>
+                              {privyWalletBalanceTinybar === null
+                                ? "…"
+                                : `${tinybarToHbar(privyWalletBalanceTinybar)} HBAR`}
+                            </strong>
+                          </span>
+                          <button
+                            type="button"
+                            className="secondary"
+                            style={{ padding: "2px 10px", fontSize: 12 }}
+                            onClick={refreshPrivyWalletBalance}
+                            disabled={checkingBalance || !privyWalletAddress}
+                          >
+                            {checkingBalance ? "Checking…" : "Refresh"}
+                          </button>
+                        </div>
+                        {privyWalletBalanceTinybar !== null &&
+                          BigInt(privyWalletBalanceTinybar) < BigInt(stats.potTinybar) && (
+                            <p className="hint" style={{ color: "var(--danger, #b45309)" }}>
+                              <WarningIcon size={14} /> This wallet doesn't have enough testnet HBAR yet — send
+                              it the pot amount above from a faucet or another wallet, then hit Refresh before
+                              funding.
+                            </p>
+                          )}
+                        <button
+                          onClick={handleFundWithPrivy}
+                          disabled={
+                            fundingWithPrivy ||
+                            !privyWalletAddress ||
+                            privyWalletBalanceTinybar === null ||
+                            BigInt(privyWalletBalanceTinybar) < BigInt(stats.potTinybar)
+                          }
+                        >
                           {fundingWithPrivy && <span className="spinner" />}
                           {fundingWithPrivy ? "Signing with Privy…" : "Fund from Privy wallet"}
                         </button>

@@ -8,6 +8,7 @@ import { getResponse, getResponsesForForm } from "./db/responses.js";
 import {
   verifyIncomingHbarTransfer,
   verifyIncomingTokenTransfer,
+  getAccountHbarBalanceTinybar,
   HEDERA_TESTNET_USDC_TOKEN_ID,
   USDC_BASE_UNITS_PER_USD_CENT,
 } from "./hederaMirror.js";
@@ -200,7 +201,8 @@ export function buildServer() {
     const { formId } = request.params as { formId: string };
     try {
       const wallet = await getOrCreateCreatorWallet(formId);
-      return reply.send({ address: wallet.address });
+      const balanceTinybar = await getAccountHbarBalanceTinybar(wallet.address);
+      return reply.send({ address: wallet.address, balanceTinybar });
     } catch (err) {
       request.log.error(err, "getOrCreateCreatorWallet failed");
       return reply.status(502).send({ error: (err as Error).message });

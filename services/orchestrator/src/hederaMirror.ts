@@ -1,5 +1,20 @@
 const MIRROR_NODE_BASE = "https://testnet.mirrornode.hedera.com";
 
+/**
+ * Current HBAR balance for an account, looked up by EVM address (or
+ * 0.0.x id) — "0" if the account has never received anything yet, since
+ * Mirror Node 404s for an address with no on-ledger account rather than
+ * returning a zero balance. Used to show the creator whether their
+ * per-form funding wallet actually has money in it before they try to
+ * withdraw from it.
+ */
+export async function getAccountHbarBalanceTinybar(accountIdOrEvmAddress: string): Promise<string> {
+  const res = await fetch(`${MIRROR_NODE_BASE}/api/v1/accounts/${accountIdOrEvmAddress}`);
+  if (!res.ok) return "0";
+  const data = (await res.json()) as { balance?: { balance: number } };
+  return String(data.balance?.balance ?? 0);
+}
+
 export const HEDERA_TESTNET_USDC_TOKEN_ID = "0.0.429274";
 /** Testnet USDC has 6 decimals; 1 USD cent = 10,000 base units. */
 export const USDC_BASE_UNITS_PER_USD_CENT = 10_000n;
