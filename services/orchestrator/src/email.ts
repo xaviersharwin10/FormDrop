@@ -42,7 +42,7 @@ export async function sendClaimEmail(payload: FormSubmissionPayload): Promise<vo
     const mimeMessage = [
       `To: ${payload.respondentEmail}`,
       `From: FormDrop <${config.gmailSenderEmail}>`,
-      `Subject: You've been paid for your response — claim it now`,
+      `Subject: You've been paid for your response - claim it now`,
       `Content-Type: text/html; charset=utf-8`,
       "",
       `<p>Your form response was approved.</p><p><a href="${claimUrl}">Click here to verify you're a real, unique person and claim your payout</a>.</p><p>Takes about 30 seconds — a quick face scan, then the money is yours.</p>`,
