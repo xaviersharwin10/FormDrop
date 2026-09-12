@@ -88,18 +88,47 @@ export const config = {
    * real HTTPS redirect_uri, since creators authorize this one live from
    * their browser via a "Connect Google Forms" button, not a one-time local
    * setup script. See googleFormsAuth.ts.
+   *
+   * Deliberately optional (not requireEnv) — this whole feature is additive
+   * to a service that already works without it. Missing config here must
+   * fail the one route that needs it, at request time, not crash the whole
+   * orchestrator (payments, claims, the Apps Script webhook) at boot before
+   * these values exist in the deployment. See requireGoogleFormsConfig().
    */
-  googleFormsOAuthClientId: requireEnv("GOOGLE_FORMS_OAUTH_CLIENT_ID"),
-  googleFormsOAuthClientSecret: requireEnv("GOOGLE_FORMS_OAUTH_CLIENT_SECRET"),
+  googleFormsOAuthClientId: process.env.GOOGLE_FORMS_OAUTH_CLIENT_ID,
+  googleFormsOAuthClientSecret: process.env.GOOGLE_FORMS_OAUTH_CLIENT_SECRET,
 
   /** Full Pub/Sub topic name (projects/<id>/topics/<name>) that forms.watches.create publishes to. */
-  googlePubsubTopic: requireEnv("GOOGLE_PUBSUB_TOPIC"),
+  googlePubsubTopic: process.env.GOOGLE_PUBSUB_TOPIC,
   /**
    * The push subscription's OIDC-authenticated service account email and
    * intended audience — both checked against the signed token Google
    * attaches to every push request, so a forged POST to our push endpoint
    * can't masquerade as a real Forms notification. See googleFormsPush.ts.
    */
-  googlePubsubPushServiceAccountEmail: requireEnv("GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL"),
-  googlePubsubPushAudience: requireEnv("GOOGLE_PUBSUB_PUSH_AUDIENCE"),
+  googlePubsubPushServiceAccountEmail: process.env.GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL,
+  googlePubsubPushAudience: process.env.GOOGLE_PUBSUB_PUSH_AUDIENCE,
 };
+
+/** Throws a clear, request-time error if the Google Forms push feature isn't configured yet, instead of the config fields being silently undefined deep inside a fetch call. */
+export function requireGoogleFormsConfig(): {
+  googleFormsOAuthClientId: string;
+  googleFormsOAuthClientSecret: string;
+  googlePubsubTopic: string;
+  googlePubsubPushServiceAccountEmail: string;
+  googlePubsubPushAudience: string;
+} {
+  const missing = (
+    [
+      "googleFormsOAuthClientId",
+      "googleFormsOAuthClientSecret",
+      "googlePubsubTopic",
+      "googlePubsubPushServiceAccountEmail",
+      "googlePubsubPushAudience",
+    ] as const
+  ).filter((key) => !config[key]);
+  if (missing.length > 0) {
+    throw new Error(`Google Forms push notifications aren't configured yet — missing: ${missing.join(", ")}`);
+  }
+  return config as ReturnType<typeof requireGoogleFormsConfig>;
+}

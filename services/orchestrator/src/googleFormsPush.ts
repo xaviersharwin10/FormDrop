@@ -1,6 +1,6 @@
 import { OAuth2Client } from "google-auth-library";
 import type { FormSubmissionPayload } from "@formdrop/shared";
-import { config } from "./config.js";
+import { requireGoogleFormsConfig } from "./config.js";
 import { getFormWatch, getGoogleAccount, updateWatchAfterFetch } from "./db/googleForms.js";
 import { getAccessTokenFromRefreshToken } from "./googleFormsAuth.js";
 import { getQuestionTitles, listNewResponses } from "./googleFormsApi.js";
@@ -17,13 +17,14 @@ const oauthClient = new OAuth2Client();
  * what we configured when creating the subscription.
  */
 export async function verifyPubSubPushToken(authorizationHeader: string | undefined): Promise<void> {
+  const { googlePubsubPushAudience, googlePubsubPushServiceAccountEmail } = requireGoogleFormsConfig();
   if (!authorizationHeader?.startsWith("Bearer ")) {
     throw new Error("Missing bearer token on push request");
   }
   const idToken = authorizationHeader.slice("Bearer ".length);
-  const ticket = await oauthClient.verifyIdToken({ idToken, audience: config.googlePubsubPushAudience });
+  const ticket = await oauthClient.verifyIdToken({ idToken, audience: googlePubsubPushAudience });
   const payload = ticket.getPayload();
-  if (payload?.email !== config.googlePubsubPushServiceAccountEmail) {
+  if (payload?.email !== googlePubsubPushServiceAccountEmail) {
     throw new Error(`Unexpected push token principal: ${payload?.email}`);
   }
 }

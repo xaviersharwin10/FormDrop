@@ -1,4 +1,4 @@
-import { config } from "./config.js";
+import { requireGoogleFormsConfig } from "./config.js";
 
 const FORMS_API_BASE = "https://forms.googleapis.com/v1";
 const FORMS_API_BETA_BASE = "https://forms.googleapis.com/v1beta";
@@ -54,11 +54,12 @@ export interface WatchResult {
 }
 
 export async function createResponsesWatch(formId: string, accessToken: string): Promise<WatchResult> {
+  const { googlePubsubTopic } = requireGoogleFormsConfig();
   const res = await formsFetch(`${FORMS_API_BETA_BASE}/forms/${encodeURIComponent(formId)}/watches`, accessToken, {
     method: "POST",
     body: JSON.stringify({
       watch: {
-        target: { topic: { topicName: config.googlePubsubTopic } },
+        target: { topic: { topicName: googlePubsubTopic } },
         eventType: "RESPONSES",
       },
     }),
