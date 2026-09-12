@@ -1,0 +1,106 @@
+# Render Blueprint — deploys all three FormDrop services from this one repo.
+#
+# Setup: render.com -> New -> Blueprint -> connect this GitHub repo. Render
+# reads this file and provisions all three services below in one pass.
+# Every entry with no value and no comment marked "public" is a real secret —
+# Render will prompt for it during setup; copy the value from the matching
+# local .env file (services/orchestrator/.env, services/resource-server/.env).
+# None of those values live in this file, on purpose.
+#
+# Service URLs are predictable (https://<name>.onrender.com) since the names
+# below are fixed, so cross-service URLs are hardcoded rather than needing a
+# manual round-trip after each deploy. If Render appends a suffix because a
+# name collided with another user's service, update the affected env vars
+# (RESOURCE_SERVER_URL, WEB_APP_URL, NEXT_PUBLIC_ORCHESTRATOR_URL) to match
+# the URL Render actually assigned.
+
+services:
+  - type: web
+    name: formdrop-resource-server
+    runtime: node
+    plan: free
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @formdrop/resource-server... build
+    startCommand: pnpm --filter @formdrop/resource-server start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: HEDERA_PAY_TO_ACCOUNT_ID
+        value: "0.0.10478051" # public Hedera account id, not a secret
+      - key: HEDERA_NETWORK
+        value: hedera:testnet
+      - key: BLOCKY402_FACILITATOR_URL
+        value: https://api.testnet.blocky402.com
+      - key: VERIFICATION_PRICE_TINYBAR
+        value: "100000"
+      - key: X402_SETTLEMENT_ASSET
+        value: USDC
+      - key: VERIFICATION_PRICE_USDC_BASE_UNITS
+        value: "10000"
+      - key: GEMINI_API_KEY
+        sync: false # secret — from aistudio.google.com/apikey
+
+  - type: web
+    name: formdrop-orchestrator
+    runtime: node
+    plan: free
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @formdrop/orchestrator... build
+    startCommand: pnpm --filter @formdrop/orchestrator start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: HEDERA_ACCOUNT_ID
+        value: "0.0.10439799" # public Hedera account id, not a secret
+      - key: HEDERA_NETWORK
+        value: hedera:testnet
+      - key: RESOURCE_SERVER_URL
+        value: https://formdrop-resource-server.onrender.com
+      - key: WEB_APP_URL
+        value: https://formdrop-web.onrender.com
+      - key: PRIVY_APP_ID
+        value: cmtu8v7ob01t40cjsebhg1r39 # same id used client-side, not sensitive alone
+      - key: PRIVY_RESPONDENT_POLICY_ID
+        value: e1ks1ybgvxa9yh901mh5reqr
+      - key: PRIVY_CREATOR_KEY_QUORUM_ID
+        value: mbc97esikegbrktucr90mhfr
+      - key: WORLD_APP_ID
+        value: app_be3e6f96245c83d487299ff5ecc0f9cb
+      - key: WORLD_RP_ID
+        value: rp_25474fa5bf732e8d
+      - key: WORLD_ENVIRONMENT
+        value: sandbox
+      - key: HCS_AUDIT_TOPIC_ID
+        value: "0.0.10460886"
+      - key: USD_CENTS_PER_HBAR
+        value: "100"
+      - key: DATABASE_URL
+        sync: false # secret — Supabase pooler connection string
+      - key: HEDERA_PRIVATE_KEY
+        sync: false # secret — operator ECDSA private key
+      - key: PRIVY_APP_SECRET
+        sync: false # secret
+      - key: PRIVY_CREATOR_AUTHORIZATION_PRIVATE_KEY
+        sync: false # secret — P-256 key quorum authorization key
+      - key: WORLD_SIGNING_KEY
+        sync: false # secret — RP signing key
+      - key: STRIPE_SECRET_KEY
+        sync: false # secret — Stripe test-mode key
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false # secret — needs a real value once a live Stripe webhook endpoint exists
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false # secret — Gmail App Password, not the account password
+
+  - type: web
+    name: formdrop-web
+    runtime: node
+    plan: free
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @formdrop/web... build
+    startCommand: pnpm --filter @formdrop/web start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_PRIVY_APP_ID
+        value: cmtu8v7ob01t40cjsebhg1r39 # NEXT_PUBLIC_ — ships to the browser by design
+      - key: NEXT_PUBLIC_ORCHESTRATOR_URL
+        value: https://formdrop-orchestrator.onrender.com

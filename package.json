@@ -6,6 +6,7 @@
   "engines": {
     "node": ">=20"
   },
+  "packageManager": "pnpm@10.21.0",
   "scripts": {
     "dev:resource-server": "pnpm --filter @formdrop/resource-server dev",
     "dev:orchestrator": "pnpm --filter @formdrop/orchestrator dev",
