@@ -759,7 +759,7 @@ multiplexes across every registered form. Adding a form is now: append its
 id to `FORM_IDS`, run `syncFormTriggers()` once. No new script project, no
 copy-pasted code, per new form.
 
-## 2026-09-12 — Claim emails: Gmail SMTP -> Brevo HTTP API
+## 2026-09-12 — Claim emails: Gmail SMTP -> Brevo HTTP API -> Gmail REST API
 
 First live end-to-end submission against the deployed (not local) stack
 surfaced a real production bug: `sendClaimEmail failed: Error: Connection
@@ -776,12 +776,26 @@ here hit a provider-side wall: `config.ts`'s history already notes Resend
 was tried first and dropped because its test-mode sender only delivers to
 the Resend account's own address without a verified domain.
 
-Replaced SMTP entirely with Brevo's HTTP API (`api.brevo.com/v3/smtp/email`,
-plain HTTPS/443 — never blocked). Brevo's free tier needs only a single
-verified sender address (a confirmation-link click, no DNS/domain setup)
-to send to *any* recipient — the actual requirement here, since respondents
-are real Google account holders, not pre-approved test addresses. Verified
-this distinction against Brevo's own docs before switching, given Resend's
-lookalike restriction had already cost time once. `nodemailer` and
-`@types/nodemailer` removed from `services/orchestrator/package.json`
+First replacement attempt: Brevo's HTTP API (`api.brevo.com/v3/smtp/email`,
+plain HTTPS/443 — never blocked by Render). Needs only a single verified
+sender address, not a verified domain, to send to any recipient — verified
+against Brevo's own docs before switching, given Resend's lookalike
+restriction had already cost time once. Reverted almost immediately: Brevo
+flagged the brand-new account for review/suspension on signup — an
+anti-fraud screening outcome outside our control and not something to
+gamble on repeating with a different provider (SendGrid, Mailjet use the
+same single-sender-verification model and the same fresh-account risk)
+this close to submission.
+
+Final fix: the Gmail REST API (`gmail.googleapis.com/gmail/v1/users/me/messages/send`)
+instead of any third-party provider. Same benefit as Brevo — plain HTTPS,
+sidesteps the SMTP port block entirely — but authenticates via OAuth2 as
+an account we already own and have used for months, so there's no new
+account to get flagged. One-time setup (`pnpm gmail:setup-oauth`,
+`gmailSetupOAuth.ts`) runs Google's loopback OAuth flow (the current
+replacement for the manual-code "out-of-band" flow Google deprecated in
+2023 — confirmed before implementing, not assumed from an old tutorial)
+to mint a refresh token; `email.ts` exchanges it for a short-lived access
+token per send and POSTs a base64url-encoded RFC 2822 message. `nodemailer`
+and `@types/nodemailer` removed from `services/orchestrator/package.json`
 entirely rather than left unused.

@@ -44,19 +44,23 @@ export const config = {
   worldEnvironment: (process.env.WORLD_ENVIRONMENT ?? "sandbox") as "production" | "staging" | "sandbox",
 
   /**
-   * Sends claim emails via Brevo's HTTP API (api.brevo.com), not SMTP.
-   * Third attempt at this: Resend's test-mode sender only delivers to the
-   * Resend account's own email without a verified domain (a real
-   * respondent's inbox would never receive anything); Gmail SMTP worked
-   * locally but Render's free tier blocks outbound traffic to SMTP ports
-   * 25/465/587 entirely (confirmed via Render's own changelog, not a bug
-   * in our code) — a raw ETIMEDOUT on connect, not an auth failure. Brevo's
-   * API goes over plain HTTPS (port 443, never blocked) and only needs a
-   * single verified sender address, not a verified domain, to send to any
-   * recipient.
+   * Sends claim emails via the Gmail REST API (gmail.googleapis.com), not
+   * SMTP. Third attempt at this: Resend's test-mode sender only delivers
+   * to the Resend account's own email without a verified domain; Gmail
+   * SMTP worked locally but Render's free tier blocks outbound traffic to
+   * SMTP ports 25/465/587 entirely (confirmed via Render's own changelog)
+   * — a raw ETIMEDOUT on connect; Brevo's HTTP API dodges the port block
+   * but flagged this account for review on signup, with no way to predict
+   * or appeal that in time. The Gmail API goes over plain HTTPS like
+   * Brevo's did, but authenticates as an account we already own and trust
+   * (OAuth refresh token from `pnpm gmail:setup-oauth`, see
+   * gmailSetupOAuth.ts) instead of a brand-new third-party account that
+   * can be suspended for reasons outside our control.
    */
-  brevoApiKey: requireEnv("BREVO_API_KEY"),
-  brevoSenderEmail: requireEnv("BREVO_SENDER_EMAIL"),
+  googleOAuthClientId: requireEnv("GOOGLE_OAUTH_CLIENT_ID"),
+  googleOAuthClientSecret: requireEnv("GOOGLE_OAUTH_CLIENT_SECRET"),
+  googleOAuthRefreshToken: requireEnv("GOOGLE_OAUTH_REFRESH_TOKEN"),
+  gmailSenderEmail: requireEnv("GMAIL_SENDER_EMAIL"),
   /** apps/web base URL — the claim link points here. */
   webAppUrl: process.env.WEB_APP_URL ?? "http://localhost:3000",
 

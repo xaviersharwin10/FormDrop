@@ -86,10 +86,14 @@ services:
         sync: false # secret — Stripe test-mode key
       - key: STRIPE_WEBHOOK_SECRET
         sync: false # secret — needs a real value once a live Stripe webhook endpoint exists
-      - key: BREVO_API_KEY
-        sync: false # secret — from Brevo dashboard: profile menu > SMTP & API > API Keys
-      - key: BREVO_SENDER_EMAIL
-        sync: false # the email verified as a sender in Brevo (Single Sender Verification) — not a secret, but has no fixed public value
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false # secret — Google Cloud Console > Credentials > OAuth client (Desktop app)
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false # secret — from the same OAuth client
+      - key: GOOGLE_OAUTH_REFRESH_TOKEN
+        sync: false # secret — printed by `pnpm gmail:setup-oauth`, run once locally
+      - key: GMAIL_SENDER_EMAIL
+        sync: false # the Gmail address authorized via gmail:setup-oauth — not a secret, but has no fixed public value
 
   - type: web
     name: formdrop-web
