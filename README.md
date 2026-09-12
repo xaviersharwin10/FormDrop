@@ -77,57 +77,44 @@ because it isn't asking anyone to adopt anything.
 
 One respondent journey, six steps, entirely on Hedera settlement rails:
 
-```
-┌──────────────────────────────────┐
-│             CREATOR              │
-│   sets a price, funds the pot    │
-│ (card, crypto, or Privy wallet)  │
-└──────────────────────────────────┘
-                 │
-     1. fund the pot -- one-time setup
-                 ▼
-┌──────────────────────────────────┐
-│ RESPONDENT SUBMITS A GOOGLE FORM │
-│ (700M+ people already use this)  │
-└──────────────────────────────────┘
-                 │
-     2. Apps Script webhook
-                 ▼
-┌──────────────────────────────────┐
-│           ORCHESTRATOR           │
-│      the paying x402 client      │
-└──────────────────────────────────┘
-                 │
-     3. x402 payment, settled on Hedera
-                 ▼
-┌──────────────────────────────────┐
-│         RESOURCE SERVER          │
-│ Gemini AI judges quality + fraud │
-└──────────────────────────────────┘
-                 │
-     4. verdict returned
-                 ▼
-┌──────────────────────────────────┐
-│     HEDERA CONSENSUS SERVICE     │
-│   verdict anchored -- public,    │
-│    tamper-evident audit trail    │
-└──────────────────────────────────┘
-                 │
-     5. if APPROVED -> claim email
-                 ▼
-┌──────────────────────────────────┐
-│   RESPONDENT CLICKS CLAIM LINK   │
-│     World ID Selfie Check --     │
-│     proves unique personhood     │
-└──────────────────────────────────┘
-                 │
-     6. verified, once per human per form
-                 ▼
-┌──────────────────────────────────┐
-│   PRIVY WALLET + HEDERA PAYOUT   │
-│      settles in seconds --       │
-│ no wallet setup, no seed phrase  │
-└──────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph SETUP[" 🛠️ SETUP — once per form "]
+        A["👤 Creator<br/>sets a price, funds the pot<br/>card, crypto, or Privy wallet"]
+    end
+
+    subgraph AUTOMATIC[" ⚡ EVERY RESPONSE — fully automatic "]
+        B["📋 Respondent submits a Google Form<br/>700M+ people already use this"]
+        C["⚙️ Orchestrator<br/>the paying x402 client"]
+        D["🤖 Resource Server<br/>Gemini AI judges quality + fraud"]
+        E["🔗 Hedera Consensus Service<br/>verdict anchored — public, tamper-evident audit trail"]
+        B -->|"2. Apps Script webhook"| C
+        C -->|"3. x402 payment<br/>settled on Hedera"| D
+        D -->|"4. verdict returned"| E
+    end
+
+    subgraph CLAIM[" 🎉 CLAIM — respondent triggered "]
+        F["✅ Respondent clicks claim link<br/>World ID Selfie Check — proves unique personhood"]
+        G["💰 Privy wallet + Hedera payout<br/>settles in seconds — no wallet setup, no seed phrase"]
+        F -->|"6. verified<br/>once per human per form"| G
+    end
+
+    A -->|"1. fund the pot<br/>one-time setup"| B
+    E -->|"5. if APPROVED<br/>claim email sent"| F
+
+    classDef creator fill:#eef2ff,stroke:#6366f1,stroke-width:2px,color:#1e1b4b
+    classDef form fill:#f8fafc,stroke:#64748b,stroke-width:2px,color:#1e293b
+    classDef backend fill:#faf5ff,stroke:#a855f7,stroke-width:2px,color:#3b0764
+    classDef hedera fill:#ecfdf5,stroke:#10b981,stroke-width:2px,color:#064e3b
+    classDef claim fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#7c2d12
+    classDef payout fill:#d1fae5,stroke:#059669,stroke-width:3px,color:#064e3b
+
+    class A creator
+    class B form
+    class C,D backend
+    class E hedera
+    class F claim
+    class G payout
 ```
 
 The **orchestrator** and **resource server** are deliberately two separate
