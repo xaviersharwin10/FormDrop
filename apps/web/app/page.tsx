@@ -63,7 +63,7 @@ export default function CreatorConsole() {
     usdCentsPerHbar: number;
   } | null>(null);
   const [fundingTxId, setFundingTxId] = useState("");
-  const [fundingMethod, setFundingMethod] = useState<"card" | "crypto" | "privy">("card");
+  const [fundingMethod, setFundingMethod] = useState<"card" | "crypto" | "privy">("crypto");
   const [cryptoAsset, setCryptoAsset] = useState<FundingAsset>("HBAR");
   const [privyWalletAddress, setPrivyWalletAddress] = useState<string | null>(null);
   const [privyWalletBalanceTinybar, setPrivyWalletBalanceTinybar] = useState<string | null>(null);
@@ -514,12 +514,6 @@ export default function CreatorConsole() {
                       responses × {tinybarToHbar(stats.pricePerResponseTinybar)} HBAR)
                     </p>
                     <div className="tabs" style={{ marginTop: 14 }}>
-                      <button
-                        className={fundingMethod === "card" ? "" : "secondary"}
-                        onClick={() => setFundingMethod("card")}
-                      >
-                        Card
-                      </button>
                       <button
                         className={fundingMethod === "crypto" ? "" : "secondary"}
                         onClick={() => setFundingMethod("crypto")}
