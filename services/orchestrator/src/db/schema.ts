@@ -12,8 +12,14 @@ CREATE TABLE IF NOT EXISTS forms (
   max_responses INTEGER NOT NULL,
   created_at_iso TEXT NOT NULL,
   funded BOOLEAN NOT NULL DEFAULT FALSE,
-  funding_transaction_id TEXT
+  funding_transaction_id TEXT,
+  creator_id TEXT
 );
+
+-- Added after the table already existed in deployed environments — CREATE
+-- TABLE IF NOT EXISTS alone wouldn't backfill this column onto those.
+ALTER TABLE forms ADD COLUMN IF NOT EXISTS creator_id TEXT;
+CREATE INDEX IF NOT EXISTS forms_creator_id_idx ON forms (creator_id);
 
 CREATE TABLE IF NOT EXISTS responses (
   form_id TEXT NOT NULL,

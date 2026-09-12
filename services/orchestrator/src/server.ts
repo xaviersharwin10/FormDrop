@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import type Stripe from "stripe";
 import { parseFormSubmissionPayload } from "./validate.js";
 import { handleFormSubmit } from "./webhook.js";
-import { getFormConfig, markFunded, setFormConfig, type FormConfig } from "./db/forms.js";
+import { getFormConfig, getFormsForCreator, markFunded, setFormConfig, type FormConfig } from "./db/forms.js";
 import { getResponse, getResponsesForForm } from "./db/responses.js";
 import {
   verifyIncomingHbarTransfer,
@@ -94,6 +94,7 @@ export function buildServer() {
       formId: string;
       pricePerResponseTinybar: string;
       maxResponses: number;
+      creatorId: string;
     }>;
 
     if (
@@ -111,8 +112,15 @@ export function buildServer() {
       pricePerResponseTinybar: body.pricePerResponseTinybar,
       maxResponses: body.maxResponses,
       createdAtIso: new Date().toISOString(),
+      creatorId: typeof body.creatorId === "string" && body.creatorId !== "" ? body.creatorId : null,
     });
     return reply.send(await buildStats(formConfig));
+  });
+
+  app.get("/creators/:creatorId/forms", async (request, reply) => {
+    const { creatorId } = request.params as { creatorId: string };
+    const forms = await getFormsForCreator(creatorId);
+    return reply.send(await Promise.all(forms.map(buildStats)));
   });
 
   app.get("/forms/:formId/treasury", async () => ({
