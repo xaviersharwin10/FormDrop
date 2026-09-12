@@ -88,7 +88,7 @@ flowchart TD
         C["⚙️ Orchestrator<br/>the paying x402 client"]
         D["🤖 Resource Server<br/>Gemini AI judges quality + fraud"]
         E["🔗 Hedera Consensus Service<br/>verdict anchored — public, tamper-evident audit trail"]
-        B -->|"2. Apps Script webhook"| C
+        B -->|"2. Apps Script webhook,<br/>or a Google Forms push notification"| C
         C -->|"3. x402 payment<br/>settled on Hedera"| D
         D -->|"4. verdict returned"| E
     end
@@ -133,6 +133,7 @@ services/
   resource-server/  Fastify — x402-gated verification service (the "service" being sold)
   orchestrator/     Fastify — webhook receiver, paying x402 client, HCS anchoring, payouts, email
                     src/db/  Postgres schema + client (forms, responses, used_nullifiers)
+                    src/googleForms*.ts  Google Forms push-notification onboarding (no Apps Script)
 packages/
   shared/         Shared TypeScript types/utilities
 specs/            Planning docs and AI-assisted-workflow disclosure artifacts
@@ -234,23 +235,39 @@ Each settled a real, separate Hedera testnet transaction
 check either on the Mirror Node, e.g.
 [api/v1/transactions/0.0.7162784-1789002671-381366556](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789002671-381366556).
 
-### Claim email (Gmail SMTP)
+### Claim email (Gmail API via OAuth)
 
-1. Enable 2-Step Verification on the sending Gmail account, then generate
-   an App Password at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
-2. Add `GMAIL_USER` and `GMAIL_APP_PASSWORD` to
-   `services/orchestrator/.env`. Optionally set `WEB_APP_URL` (defaults to
-   `http://localhost:3000`).
+1. In a Google Cloud project, enable the **Gmail API**, then create an
+   OAuth 2.0 Client ID of type **Desktop app** (APIs & Services →
+   Credentials). Add `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`
+   to `services/orchestrator/.env`, plus `GMAIL_SENDER_EMAIL` (the sending
+   account's own address).
+2. Run once: `pnpm --filter @formdrop/orchestrator gmail:setup-oauth` — runs
+   Google's loopback OAuth flow locally and prints
+   `GOOGLE_OAUTH_REFRESH_TOKEN` to add to `.env`. (If the account isn't a
+   verified tester on this OAuth client's consent screen yet, add it there
+   first — this client only ever needs one sender, so it stays in Testing
+   mode; it doesn't need the public-facing "In production" treatment the
+   Forms OAuth client below does.) Optionally set `WEB_APP_URL` (defaults
+   to `http://localhost:3000`).
 
 The moment `handleFormSubmit` records an `APPROVE` verdict, it fires an
-email (`services/orchestrator/src/email.ts`, via `nodemailer`) containing
-the respondent's claim link — fire-and-forget, so a slow or bounced email
-can never turn a successful paid verification into a webhook failure.
+email — fire-and-forget, so a slow or bounced email can never turn a
+successful paid verification into a webhook failure — via the Gmail REST
+API (`gmail.googleapis.com/gmail/v1/users/me/messages/send`), not SMTP:
+`services/orchestrator/src/email.ts` exchanges the refresh token for a
+short-lived access token per send and POSTs a base64url-encoded RFC 2822
+message.
 
-Originally built on Resend; switched after a real Google Form test showed
-Resend's test-mode sender only delivers to the Resend account's own
-email, not arbitrary respondents — see `specs/DECISIONS.md`
-(2026-09-11) for how that was caught and fixed.
+Three providers, in order, before landing here — each switch driven by a
+real failure, not a preference: Resend (test-mode sender only delivers to
+the Resend account's own inbox, not arbitrary respondents), Gmail SMTP
+(works locally, but Render's free tier blocks outbound traffic to SMTP
+ports 25/465/587 entirely), then Brevo's HTTP API (dodges the port block,
+but flagged the brand-new account for review on signup with no way to
+predict or appeal it in time). The Gmail API gets the same HTTPS benefit
+as Brevo without the new-account risk, since it authenticates as an
+account already owned and trusted. Full story in `specs/DECISIONS.md`.
 
 **Proof this works end to end:** a real Google Form submission — not a
 simulated `curl` — drove a real webhook call, a real x402 payment on
@@ -333,6 +350,61 @@ it on the Mirror Node:
      signature, not a key the orchestrator holds. See the Privy-signed
      funding section below.
    The dashboard below polls orchestrator's `/forms/:formId/stats` live.
+
+### Google Forms push notifications (connect any form, no Apps Script)
+
+The Apps Script path above still works, but it requires installing and
+authorizing a script per creator. This is the zero-install alternative:
+click **Connect Google Forms** in the console, approve one OAuth consent
+screen, then **Enable instant notifications** on any form — no script
+editor, no code, works for anyone viewing this project.
+
+1. In the same Google Cloud project, enable the **Google Forms API** and
+   **Cloud Pub/Sub API**, then create a Pub/Sub topic.
+2. Grant **Pub/Sub Publisher** on that topic to Google's own Forms service
+   account, `forms-notifications@system.gserviceaccount.com` — required
+   before Forms is allowed to publish into it at all.
+3. Create a **separate** OAuth 2.0 Client ID, type **Web application**
+   (distinct from the Gmail sender client above — this one is authorized
+   live by each creator from their browser), with authorized redirect URI
+   `<orchestrator-url>/auth/google/callback`. Requested scopes:
+   `forms.responses.readonly` + `forms.body.readonly` (two separate
+   scopes — the first reads response data, the second reads the form's own
+   questions) + `userinfo.email`.
+4. Publish that OAuth client's consent screen to **In production**
+   (unverified is fine for a sensitive, non-restricted scope like this —
+   every connecting creator sees a one-click-through "Google hasn't
+   verified this app" warning, but isn't blocked or capped at 100 testers
+   the way Testing status would cap it).
+5. Create a Pub/Sub **push subscription** on that topic targeting
+   `<orchestrator-url>/webhooks/forms-push`, with authentication enabled
+   via a dedicated service account (e.g. `pubsub-push-invoker`). Grant that
+   service account's own **Service Account Token Creator** role to Google's
+   Pub/Sub service agent (`service-<PROJECT_NUMBER>@gcp-sa-pubsub.iam.gserviceaccount.com`)
+   — not automatic, and separate from step 2's grant (that one lets Forms
+   publish *into* the topic; this one lets Pub/Sub sign requests *to us*).
+6. Add `GOOGLE_FORMS_OAUTH_CLIENT_ID` / `GOOGLE_FORMS_OAUTH_CLIENT_SECRET` /
+   `GOOGLE_PUBSUB_TOPIC` / `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` /
+   `GOOGLE_PUBSUB_PUSH_AUDIENCE` to `services/orchestrator/.env`.
+
+Once connected, `POST /forms/:formId/watch` registers a Forms API `watches`
+resource (stable `v1` — the `v1beta` surface this used during initial
+development was retired mid-build; caught by fetching the API's own
+discovery document rather than assumed) targeting the Pub/Sub topic. Every
+new response then reaches `POST /webhooks/forms-push` — verified via the
+signed OIDC token Google attaches (`google-auth-library`'s
+`verifyIdToken`) before being trusted — and feeds the exact same
+`handleFormSubmit` pipeline every other trigger source uses. A watch
+expires 7 days after creation; `POST /internal/renew-watches` renews any
+expiring within 2 days, meant to be pinged by a daily scheduled job.
+
+**Proof this works end to end:** connected a second Google account
+(distinct from the account driving the existing demo form), registered a
+brand-new form for notifications — deliberately never added to Apps
+Script's `FORM_IDS` — submitted a real response through its public
+viewform link, and watched it arrive at `/webhooks/forms-push` and settle
+through the full pipeline. Delivery was instantaneous, not the "usually
+within minutes" Google's own docs hedge on.
 
 ### Card funding (Stripe, test mode)
 
@@ -480,11 +552,12 @@ the links at the top of this README.
 
 ## Roadmap
 
-- **Google Workspace Marketplace listing** — today, watching a new form
-  means running our standalone Apps Script's `syncFormTriggers()` once
-  (see `apps/apps-script/README.md`); a published Marketplace add-on
-  would let any creator enable FormDrop from a form's own Extensions
-  menu, no script editor involved.
+- **Google Workspace Marketplace listing** — the Google Forms push
+  notification path above already gets any creator to zero-install
+  onboarding (connect once, click "Enable notifications" per form, no
+  script editor); a published Marketplace add-on would go one step
+  further, surfacing FormDrop directly from a form's own Extensions menu
+  instead of the separate creator console.
 - **Mainnet.**
 - **More settlement assets** as Hedera's stablecoin ecosystem grows
   beyond testnet USDC.
