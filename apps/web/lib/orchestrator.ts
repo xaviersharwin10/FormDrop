@@ -95,6 +95,8 @@ export interface FormResponseSummary {
   payoutTransactionId: string | null;
   hcsTransactionId: string | null;
   hcsSequenceNumber: string | null;
+  lastClaimError: string | null;
+  lastClaimAttemptIso: string | null;
 }
 
 export function getResponses(formId: string) {

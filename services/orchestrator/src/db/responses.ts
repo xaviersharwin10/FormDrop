@@ -10,6 +10,8 @@ export interface StoredResponse {
   payoutTransactionId: string | null;
   hcsTransactionId: string | null;
   hcsSequenceNumber: string | null;
+  lastClaimError: string | null;
+  lastClaimAttemptIso: string | null;
 }
 
 interface ResponseRow {
@@ -31,6 +33,8 @@ interface ResponseRow {
   payout_transaction_id: string | null;
   hcs_transaction_id: string | null;
   hcs_sequence_number: string | null;
+  last_claim_error: string | null;
+  last_claim_attempt_iso: string | null;
 }
 
 function fromRow(row: ResponseRow): StoredResponse {
@@ -57,11 +61,16 @@ function fromRow(row: ResponseRow): StoredResponse {
     payoutTransactionId: row.payout_transaction_id,
     hcsTransactionId: row.hcs_transaction_id,
     hcsSequenceNumber: row.hcs_sequence_number,
+    lastClaimError: row.last_claim_error,
+    lastClaimAttemptIso: row.last_claim_attempt_iso,
   };
 }
 
 export async function recordResponse(
-  entry: Omit<StoredResponse, "claimed" | "payoutTransactionId" | "hcsTransactionId" | "hcsSequenceNumber">,
+  entry: Omit<
+    StoredResponse,
+    "claimed" | "payoutTransactionId" | "hcsTransactionId" | "hcsSequenceNumber" | "lastClaimError" | "lastClaimAttemptIso"
+  >,
 ): Promise<void> {
   await pool.query(
     `INSERT INTO responses (
@@ -107,8 +116,21 @@ export async function getResponse(formId: string, responseId: string): Promise<S
 
 export async function markClaimed(formId: string, responseId: string, payoutTransactionId: string): Promise<void> {
   await pool.query(
-    "UPDATE responses SET claimed = TRUE, payout_transaction_id = $3 WHERE form_id = $1 AND response_id = $2",
+    `UPDATE responses SET claimed = TRUE, payout_transaction_id = $3, last_claim_error = NULL
+     WHERE form_id = $1 AND response_id = $2`,
     [formId, responseId, payoutTransactionId],
+  );
+}
+
+/**
+ * Records why a claim attempt was rejected, so the creator dashboard can
+ * show it in the responses table instead of a rejected claim vanishing
+ * without a trace anywhere in our own data.
+ */
+export async function recordClaimError(formId: string, responseId: string, message: string): Promise<void> {
+  await pool.query(
+    "UPDATE responses SET last_claim_error = $3, last_claim_attempt_iso = $4 WHERE form_id = $1 AND response_id = $2",
+    [formId, responseId, message, new Date().toISOString()],
   );
 }
 

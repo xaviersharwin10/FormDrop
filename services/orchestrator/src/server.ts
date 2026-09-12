@@ -422,6 +422,8 @@ export function buildServer() {
         payoutTransactionId: r.payoutTransactionId,
         hcsTransactionId: r.hcsTransactionId,
         hcsSequenceNumber: r.hcsSequenceNumber,
+        lastClaimError: r.lastClaimError,
+        lastClaimAttemptIso: r.lastClaimAttemptIso,
       })),
     );
   });

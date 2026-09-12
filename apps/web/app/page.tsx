@@ -851,6 +851,11 @@ export default function CreatorConsole() {
                                   value={r.payoutTransactionId}
                                   href={hashscanTransactionUrl(r.payoutTransactionId)}
                                 />
+                              ) : r.decision === "APPROVE" && r.lastClaimError ? (
+                                <span className="error" title={r.lastClaimAttemptIso ?? undefined}>
+                                  <WarningIcon size={12} />
+                                  {r.lastClaimError}
+                                </span>
                               ) : r.decision === "APPROVE" ? (
                                 <span className="hint">not claimed yet</span>
                               ) : (

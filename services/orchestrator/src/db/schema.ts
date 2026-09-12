@@ -40,8 +40,14 @@ CREATE TABLE IF NOT EXISTS responses (
   payout_transaction_id TEXT,
   hcs_transaction_id TEXT,
   hcs_sequence_number TEXT,
+  last_claim_error TEXT,
+  last_claim_attempt_iso TEXT,
   PRIMARY KEY (form_id, response_id)
 );
+
+-- Added after the table already existed in deployed environments.
+ALTER TABLE responses ADD COLUMN IF NOT EXISTS last_claim_error TEXT;
+ALTER TABLE responses ADD COLUMN IF NOT EXISTS last_claim_attempt_iso TEXT;
 
 -- The actual enforcement of "one payout per real human per form" — a
 -- unique constraint the database itself guarantees, not just application

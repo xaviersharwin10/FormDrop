@@ -176,11 +176,26 @@ export function ClaimClient() {
                 }}
                 preset={selfieCheckLegacy({ signal: responseId })}
                 handleVerify={async (idkitResult) => {
-                  const claimResult = await submitClaim(formId, responseId, idkitResult);
-                  setResult(claimResult);
+                  try {
+                    const claimResult = await submitClaim(formId, responseId, idkitResult);
+                    setResult(claimResult);
+                  } catch (err) {
+                    // Our own backend's rejection reason (e.g. "this person
+                    // has already claimed a payout from this form") is the
+                    // real, useful message here — surface it directly
+                    // instead of letting IDKit collapse it into its generic
+                    // "failed_by_host_app" code below.
+                    setError((err as Error).message);
+                    throw err;
+                  }
                 }}
                 onSuccess={() => {}}
-                onError={(code) => setError(String(code))}
+                onError={(code) => {
+                  // "failed_by_host_app" means handleVerify's own catch
+                  // above already set a specific, real message — don't
+                  // clobber it with the generic code.
+                  if (String(code) !== "failed_by_host_app") setError(String(code));
+                }}
               />
             )}
           </div>

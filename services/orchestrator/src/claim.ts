@@ -1,5 +1,5 @@
 import { getFormConfig } from "./db/forms.js";
-import { getResponse, markClaimed } from "./db/responses.js";
+import { getResponse, markClaimed, recordClaimError } from "./db/responses.js";
 import { isNullifierUsed, markNullifierUsed } from "./db/nullifiers.js";
 import { verifyWorldIdProof, type IdKitVerifyPayload } from "./world.js";
 import { getOrCreateRespondentWallet } from "./privy.js";
@@ -40,22 +40,32 @@ export async function processClaim(
   if (!response) {
     throw new ClaimError(404, "response not found");
   }
+
+  // From here on, `response` exists — so every rejection is recorded
+  // against it, not just returned to the caller. Otherwise a rejected
+  // claim leaves no trace anywhere in our own data, and the creator
+  // dashboard has nothing to show for why a response never got paid out.
+  const reject = async (status: number, message: string): Promise<never> => {
+    await recordClaimError(formId, responseId, message);
+    throw new ClaimError(status, message);
+  };
+
   if (response.verdict.decision !== "APPROVE") {
-    throw new ClaimError(403, "this response was not approved for payout");
+    return reject(403, "this response was not approved for payout");
   }
   if (response.claimed) {
-    throw new ClaimError(409, "already claimed");
+    return reject(409, "already claimed");
   }
 
   const { valid, nullifiers } = await verifyWorldIdProof(idkitResponse);
   if (!valid) {
-    throw new ClaimError(422, "World ID proof failed verification");
+    return reject(422, "World ID proof failed verification");
   }
 
   const action = claimAction(formId);
   for (const n of nullifiers) {
     if (await isNullifierUsed(n, action)) {
-      throw new ClaimError(409, "this person has already claimed a payout from this form");
+      return reject(409, "this person has already claimed a payout from this form");
     }
   }
 
