@@ -21,7 +21,18 @@ import {
 import { hashscanTransactionUrl } from "@/lib/hashscan";
 import { HashChip } from "@/components/HashChip";
 import { LogoMark, Wordmark } from "@/components/Logo";
-import { ArrowLeftIcon, InboxIcon, PlusIcon, WarningIcon } from "@/components/Icons";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  BoltIcon,
+  CheckIcon,
+  ClockIcon,
+  CrossIcon,
+  ExternalLinkIcon,
+  InboxIcon,
+  PlusIcon,
+  WarningIcon,
+} from "@/components/Icons";
 
 function initials(input: string): string {
   const at = input.indexOf("@");
@@ -342,25 +353,33 @@ export default function CreatorConsole() {
                   key={f.formId}
                   className="form-tile fade-in-up"
                   style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
-                  onClick={() => openForm(f)}
-                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openForm(f)}
-                  role="button"
-                  tabIndex={0}
                 >
-                  <span className={`badge ${f.funded ? "funded" : "unfunded"}`}>
-                    {f.funded ? "Funded" : "Not funded"}
-                  </span>
-                  <div className="form-tile-id">{f.formId}</div>
+                  <div className="form-tile-top">
+                    <span className={`badge ${f.funded ? "funded" : "unfunded"}`}>
+                      {f.funded ? <CheckIcon size={11} /> : <ClockIcon size={11} />}
+                      {f.funded ? "Funded" : "Not funded"}
+                    </span>
+                  </div>
+
+                  <HashChip value={f.formId} href={`https://docs.google.com/forms/d/${f.formId}/edit`} label="Form" />
+
                   <div className="form-tile-stats">
-                    <div>
-                      <div className="value">{f.received}</div>
-                      <div className="label">Received</div>
+                    <div className="form-tile-stat">
+                      <InboxIcon size={15} className="form-tile-stat-icon" />
+                      <div>
+                        <div className="value">{f.received}</div>
+                        <div className="label">Received</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="value">{f.approved}</div>
-                      <div className="label">Approved</div>
+                    <div className="form-tile-stat">
+                      <CheckIcon size={15} className="form-tile-stat-icon success" />
+                      <div>
+                        <div className="value">{f.approved}</div>
+                        <div className="label">Approved</div>
+                      </div>
                     </div>
                   </div>
+
                   <div className="progress-track">
                     <div
                       className="progress-fill"
@@ -379,6 +398,11 @@ export default function CreatorConsole() {
                       }}
                     />
                   </div>
+
+                  <button className="form-tile-action" onClick={() => openForm(f)}>
+                    {f.funded ? "Open dashboard" : "Fund now"}
+                    <ArrowRightIcon size={13} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -400,13 +424,25 @@ export default function CreatorConsole() {
               {stats && (
                 <>
                   <LogoMark size={22} />
-                  <span className="form-id-tag">{stats.formId}</span>
+                  <HashChip value={stats.formId} href={`https://docs.google.com/forms/d/${stats.formId}/edit`} />
                   <span className={`badge ${stats.funded ? "funded" : "unfunded"}`}>
+                    {stats.funded ? <CheckIcon size={11} /> : <ClockIcon size={11} />}
                     {stats.funded ? "Funded" : "Not funded yet"}
                   </span>
                 </>
               )}
             </div>
+            {stats && (
+              <a
+                className="ghost detail-header-open-form"
+                href={`https://docs.google.com/forms/d/${stats.formId}/edit`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open form
+                <ExternalLinkIcon size={12} />
+              </a>
+            )}
           </div>
 
           {view === "new" || !stats?.funded ? (
@@ -639,18 +675,22 @@ export default function CreatorConsole() {
               <div className="card">
                 <div className="stat-grid">
                   <div className="stat">
+                    <InboxIcon size={18} className="stat-icon" />
                     <div className="value">{stats.received}</div>
                     <div className="label">Responses received</div>
                   </div>
                   <div className="stat success">
+                    <CheckIcon size={18} className="stat-icon" />
                     <div className="value">{stats.approved}</div>
                     <div className="label">Approved &amp; paid</div>
                   </div>
                   <div className="stat danger">
+                    <CrossIcon size={18} className="stat-icon" />
                     <div className="value">{stats.rejected}</div>
                     <div className="label">Rejected by agent</div>
                   </div>
                   <div className="stat">
+                    <BoltIcon size={18} className="stat-icon" />
                     <div className="value">{tinybarToHbar(stats.remainingBudgetTinybar)}</div>
                     <div className="label">HBAR remaining</div>
                   </div>

@@ -320,7 +320,8 @@ h3 {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
   transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), border-color 0.25s var(--ease);
   box-shadow: var(--shadow-sm);
   text-align: left;
@@ -332,37 +333,69 @@ h3 {
   border-color: var(--border-strong);
 }
 
-.form-tile:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+.form-tile-top {
+  margin-bottom: 12px;
 }
 
-.form-tile .form-tile-id {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin: 10px 0 14px;
+.form-tile > .hash-chip {
+  margin-bottom: 4px;
 }
 
 .form-tile .form-tile-stats {
   display: flex;
-  gap: 18px;
-  margin-bottom: 12px;
+  gap: 20px;
+  margin: 14px 0 12px;
+}
+
+.form-tile-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-tile-stat-icon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.form-tile-stat-icon.success {
+  color: var(--success, #16a34a);
 }
 
 .form-tile .form-tile-stats div .value {
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
   font-size: 18px;
+  line-height: 1.1;
 }
 
 .form-tile .form-tile-stats div .label {
   font-size: 11px;
   color: var(--text-tertiary);
   font-weight: 600;
+}
+
+.form-tile-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 9px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.form-tile-action:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
 }
 
 .new-form-tile {
@@ -425,13 +458,22 @@ h3 {
   gap: 12px;
 }
 
-.detail-header .form-id-tag {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 12.5px;
+.detail-header-open-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.detail-header-open-form:hover {
   background: var(--surface-muted);
-  padding: 4px 10px;
-  border-radius: 999px;
+  color: var(--primary);
 }
 
 /* ---------- Stepper ---------- */
@@ -689,6 +731,27 @@ button.full {
   background: var(--surface-muted);
   border-radius: var(--radius-md);
   padding: 16px;
+  position: relative;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-icon {
+  display: block;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.stat.success .stat-icon {
+  color: var(--success);
+}
+
+.stat.danger .stat-icon {
+  color: var(--danger);
 }
 
 .stat .value {
