@@ -1,14 +1,7 @@
-import nodemailer from "nodemailer";
 import type { FormSubmissionPayload } from "@formdrop/shared";
 import { config } from "./config.js";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: config.gmailUser,
-    pass: config.gmailAppPassword,
-  },
-});
+const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
 
 /**
  * Fires right after an APPROVE verdict. Failure here must never fail the
@@ -21,13 +14,25 @@ export async function sendClaimEmail(payload: FormSubmissionPayload): Promise<vo
   const claimUrl = `${config.webAppUrl}/claim?formId=${encodeURIComponent(payload.formId)}&responseId=${encodeURIComponent(payload.responseId)}`;
 
   try {
-    await transporter.sendMail({
-      from: `FormDrop <${config.gmailUser}>`,
-      to: payload.respondentEmail,
-      subject: "You've been paid for your response — claim it now",
-      html: `<p>Your form response was approved.</p><p><a href="${claimUrl}">Click here to verify you're a real, unique person and claim your payout</a>.</p><p>Takes about 30 seconds — a quick face scan, then the money is yours.</p>`,
-      text: `Your form response was approved. Claim your payout here: ${claimUrl}\n\nTakes about 30 seconds — a quick face scan, then the money is yours.`,
+    const response = await fetch(BREVO_SEND_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "api-key": config.brevoApiKey,
+      },
+      body: JSON.stringify({
+        sender: { name: "FormDrop", email: config.brevoSenderEmail },
+        to: [{ email: payload.respondentEmail }],
+        subject: "You've been paid for your response — claim it now",
+        htmlContent: `<p>Your form response was approved.</p><p><a href="${claimUrl}">Click here to verify you're a real, unique person and claim your payout</a>.</p><p>Takes about 30 seconds — a quick face scan, then the money is yours.</p>`,
+        textContent: `Your form response was approved. Claim your payout here: ${claimUrl}\n\nTakes about 30 seconds — a quick face scan, then the money is yours.`,
+      }),
     });
+
+    if (!response.ok) {
+      throw new Error(`Brevo send failed: HTTP ${response.status} ${await response.text()}`);
+    }
   } catch (err) {
     console.error("sendClaimEmail failed:", err);
   }

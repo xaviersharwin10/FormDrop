@@ -758,3 +758,30 @@ Apps Script's own trigger-event docs, not assumed — so one project safely
 multiplexes across every registered form. Adding a form is now: append its
 id to `FORM_IDS`, run `syncFormTriggers()` once. No new script project, no
 copy-pasted code, per new form.
+
+## 2026-09-12 — Claim emails: Gmail SMTP -> Brevo HTTP API
+
+First live end-to-end submission against the deployed (not local) stack
+surfaced a real production bug: `sendClaimEmail failed: Error: Connection
+timeout ... code: 'ETIMEDOUT', command: 'CONN'`. Payment and verdict both
+worked — the failure was isolated to the SMTP connection itself.
+
+Root cause (confirmed against Render's own changelog, not guessed from the
+error alone): free Render web services block outbound traffic to SMTP
+ports 25/465/587 as of 2025-09-26, specifically to cut down on spam abuse.
+Gmail SMTP (nodemailer, `service: "gmail"`) always attempts port 465 —
+worked in every local test, impossible to work once deployed there, no
+matter how the auth is configured. This is the second time email delivery
+here hit a provider-side wall: `config.ts`'s history already notes Resend
+was tried first and dropped because its test-mode sender only delivers to
+the Resend account's own address without a verified domain.
+
+Replaced SMTP entirely with Brevo's HTTP API (`api.brevo.com/v3/smtp/email`,
+plain HTTPS/443 — never blocked). Brevo's free tier needs only a single
+verified sender address (a confirmation-link click, no DNS/domain setup)
+to send to *any* recipient — the actual requirement here, since respondents
+are real Google account holders, not pre-approved test addresses. Verified
+this distinction against Brevo's own docs before switching, given Resend's
+lookalike restriction had already cost time once. `nodemailer` and
+`@types/nodemailer` removed from `services/orchestrator/package.json`
+entirely rather than left unused.

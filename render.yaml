@@ -86,10 +86,10 @@ services:
         sync: false # secret — Stripe test-mode key
       - key: STRIPE_WEBHOOK_SECRET
         sync: false # secret — needs a real value once a live Stripe webhook endpoint exists
-      - key: GMAIL_USER
-        sync: false
-      - key: GMAIL_APP_PASSWORD
-        sync: false # secret — Gmail App Password, not the account password
+      - key: BREVO_API_KEY
+        sync: false # secret — from Brevo dashboard: profile menu > SMTP & API > API Keys
+      - key: BREVO_SENDER_EMAIL
+        sync: false # the email verified as a sender in Brevo (Single Sender Verification) — not a secret, but has no fixed public value
 
   - type: web
     name: formdrop-web
