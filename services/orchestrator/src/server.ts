@@ -283,6 +283,7 @@ export function buildServer() {
     if (!response) {
       return reply.status(404).send({ error: "response not found" });
     }
+    const formConfig = await getFormConfig(formId);
     return reply.send({
       formId,
       responseId,
@@ -292,6 +293,7 @@ export function buildServer() {
       x402TransactionId: response.x402TransactionId,
       hcsTransactionId: response.hcsTransactionId,
       hcsSequenceNumber: response.hcsSequenceNumber,
+      pricePerResponseTinybar: formConfig?.pricePerResponseTinybar ?? null,
     });
   });
 

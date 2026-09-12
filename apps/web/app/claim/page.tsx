@@ -3,7 +3,7 @@ import { ClaimClient } from "./ClaimClient";
 
 export default function ClaimPage() {
   return (
-    <Suspense fallback={<main>Loading…</main>}>
+    <Suspense fallback={<div className="claim-shell" />}>
       <ClaimClient />
     </Suspense>
   );

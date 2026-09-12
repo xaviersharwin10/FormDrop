@@ -112,6 +112,7 @@ export interface ResponseStatus {
   responseId: string;
   decision: "APPROVE" | "REJECT";
   claimed: boolean;
+  pricePerResponseTinybar: string | null;
 }
 
 export interface ClaimResult {
