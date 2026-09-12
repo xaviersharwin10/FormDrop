@@ -478,6 +478,17 @@ on Render — confirmed `pnpm --filter <pkg>... build` correctly builds
 output directly and got a real HTTP response back. All three are live at
 the links at the top of this README.
 
+## Roadmap
+
+- **Google Workspace Marketplace listing** — today, watching a new form
+  means running our standalone Apps Script's `syncFormTriggers()` once
+  (see `apps/apps-script/README.md`); a published Marketplace add-on
+  would let any creator enable FormDrop from a form's own Extensions
+  menu, no script editor involved.
+- **Mainnet.**
+- **More settlement assets** as Hedera's stablecoin ecosystem grows
+  beyond testnet USDC.
+
 ## License
 
 TBD.
