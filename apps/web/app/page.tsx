@@ -9,6 +9,7 @@ import {
   type FundingAsset,
   fundPotFromPrivyWallet,
   getCreatorPrivyWallet,
+  getFormsForCreator,
   getResponses,
   getStats,
   getTreasuryAccountId,
@@ -19,7 +20,7 @@ import {
 } from "@/lib/orchestrator";
 import { hashscanTransactionUrl } from "@/lib/hashscan";
 import { HashChip } from "@/components/HashChip";
-import { Wordmark } from "@/components/Logo";
+import { LogoMark, Wordmark } from "@/components/Logo";
 
 function initials(input: string): string {
   const at = input.indexOf("@");
@@ -27,12 +28,21 @@ function initials(input: string): string {
   return namePart.slice(0, 2).toUpperCase();
 }
 
+type View = "list" | "new" | "detail";
+
 export default function CreatorConsole() {
   const { ready, authenticated, user, login, logout } = usePrivy();
+  const creatorId = user?.id ?? null;
 
-  const [formId, setFormId] = useState("demo-form-1");
+  const [view, setView] = useState<View>("list");
+  const [forms, setForms] = useState<FormStats[] | null>(null);
+  const [loadingForms, setLoadingForms] = useState(false);
+
+  const [formId, setFormId] = useState("");
   const [priceHbar, setPriceHbar] = useState("1");
   const [maxResponses, setMaxResponses] = useState(300);
+  const [showEditor, setShowEditor] = useState(true);
+
   const [stats, setStats] = useState<FormStats | null>(null);
   const [responses, setResponses] = useState<FormResponseSummary[]>([]);
   const [treasury, setTreasury] = useState<{
@@ -50,6 +60,21 @@ export default function CreatorConsole() {
   const [fundingWithPrivy, setFundingWithPrivy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadForms = useCallback(async (id: string) => {
+    setLoadingForms(true);
+    try {
+      setForms(await getFormsForCreator(id));
+    } catch {
+      setForms([]);
+    } finally {
+      setLoadingForms(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authenticated && creatorId) loadForms(creatorId);
+  }, [authenticated, creatorId, loadForms]);
+
   const refreshStats = useCallback(async (id: string) => {
     try {
       setStats(await getStats(id));
@@ -60,12 +85,46 @@ export default function CreatorConsole() {
   }, []);
 
   useEffect(() => {
-    if (!stats) return;
+    if (view !== "detail" || !stats) return;
     const interval = setInterval(() => refreshStats(stats.formId), 4000);
     return () => clearInterval(interval);
-  }, [stats, refreshStats]);
+  }, [view, stats, refreshStats]);
+
+  const openForm = useCallback((form: FormStats) => {
+    setStats(form);
+    setFormId(form.formId);
+    setPriceHbar(tinybarToHbar(form.pricePerResponseTinybar));
+    setMaxResponses(form.maxResponses);
+    setShowEditor(!form.funded);
+    setResponses([]);
+    setTreasury(null);
+    setPrivyWalletAddress(null);
+    setFundingTxId("");
+    setError(null);
+    setView("detail");
+    getResponses(form.formId).then(setResponses).catch(() => {});
+    getTreasuryAccountId(form.formId).then(setTreasury).catch(() => {});
+  }, []);
+
+  const startNewForm = useCallback(() => {
+    setStats(null);
+    setFormId("");
+    setPriceHbar("1");
+    setMaxResponses(300);
+    setShowEditor(true);
+    setResponses([]);
+    setTreasury(null);
+    setError(null);
+    setView("new");
+  }, []);
+
+  const backToList = useCallback(() => {
+    setView("list");
+    if (creatorId) loadForms(creatorId);
+  }, [creatorId, loadForms]);
 
   const handleSave = useCallback(async () => {
+    if (!creatorId) return;
     setSaving(true);
     setError(null);
     try {
@@ -73,18 +132,22 @@ export default function CreatorConsole() {
         formId,
         pricePerResponseTinybar: hbarToTinybar(priceHbar),
         maxResponses,
+        creatorId,
       });
       // saveFormConfig's response is just the raw form config (no
       // potTinybar/received/approved/etc — those are computed only by
       // /stats), so fetch the full stats shape instead of using it directly.
-      setStats(await getStats(formId));
+      const fresh = await getStats(formId);
+      setStats(fresh);
       setTreasury(await getTreasuryAccountId(formId));
+      setView("detail");
+      setShowEditor(!fresh.funded);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setSaving(false);
     }
-  }, [formId, priceHbar, maxResponses]);
+  }, [formId, priceHbar, maxResponses, creatorId]);
 
   const handleVerifyFunding = useCallback(async () => {
     setVerifying(true);
@@ -92,6 +155,7 @@ export default function CreatorConsole() {
     try {
       const result = await verifyFunding(formId, fundingTxId.trim(), cryptoAsset);
       setStats(result);
+      setShowEditor(false);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -105,6 +169,7 @@ export default function CreatorConsole() {
     try {
       const result = await fundPotFromPrivyWallet(formId);
       setStats(result);
+      setShowEditor(false);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -138,8 +203,6 @@ export default function CreatorConsole() {
     }
   }, [formId, refreshStats]);
 
-  const configureDone = stats !== null;
-  const fundDone = stats?.funded ?? false;
   const spentTinybar = stats ? (BigInt(stats.potTinybar) - BigInt(stats.remainingBudgetTinybar)).toString() : "0";
   const spendPct = stats && BigInt(stats.potTinybar) > BigInt(0)
     ? Number((BigInt(spentTinybar) * BigInt(1000)) / BigInt(stats.potTinybar)) / 10
@@ -147,101 +210,236 @@ export default function CreatorConsole() {
 
   return (
     <main>
-      <div className="top-bar">
-        <Wordmark withTagline={!authenticated} />
-        {ready && authenticated && (
-          <div className="auth-pill">
-            <span className="avatar">{initials(user?.email?.address ?? user?.wallet?.address ?? user?.id ?? "?")}</span>
-            <span className="mono" style={{ fontSize: 12 }}>
-              {user?.email?.address ?? user?.wallet?.address ?? user?.id}
-            </span>
-            <button className="ghost" onClick={logout}>
-              Log out
-            </button>
-          </div>
-        )}
+      <div className="navbar">
+        <div className="navbar-inner">
+          <Wordmark withTagline={false} />
+          {ready && authenticated ? (
+            <div className="auth-pill">
+              <span className="avatar">{initials(user?.email?.address ?? user?.wallet?.address ?? user?.id ?? "?")}</span>
+              <span className="mono" style={{ fontSize: 12 }}>
+                {user?.email?.address ?? user?.wallet?.address ?? user?.id}
+              </span>
+              <button className="ghost" onClick={logout}>
+                Log out
+              </button>
+            </div>
+          ) : ready ? (
+            <button onClick={login}>Log in with Privy</button>
+          ) : null}
+        </div>
       </div>
 
       {!ready ? (
-        <div className="card">
+        <div className="shell">
           <p className="hint">Loading…</p>
         </div>
       ) : !authenticated ? (
-        <div className="card login-hero">
-          <h1>Fund answers. Pay winners instantly.</h1>
-          <p>
-            Set a price per approved response, fund the pot once, and every real, verified respondent gets
-            paid the second an AI agent approves their answer — no invoices, no manual payouts.
-          </p>
-          <button onClick={login}>Log in with Privy</button>
+        <>
+          <div className="shell">
+            <div className="hero">
+              <div className="hero-inner">
+                <span className="hero-eyebrow">Built on Hedera · Privy · World ID</span>
+                <h1>Turn every Google Form into an instant payout.</h1>
+                <p className="hero-sub">
+                  Google Forms already has 700M+ monthly users. FormDrop pays real respondents the moment an
+                  AI agent verifies their answer and World ID confirms they&rsquo;re a unique human —
+                  settled on Hedera in seconds. No wallet setup, no seed phrase, no crypto knowledge required.
+                </p>
+                <div className="hero-cta-row">
+                  <button onClick={login}>Log in with Privy to get started</button>
+                </div>
+              </div>
+
+              <div className="stat-pill-row">
+                <div className="stat-pill">
+                  <div className="stat-pill-value">700M+</div>
+                  <div className="stat-pill-label">Built-in reach, zero acquisition cost</div>
+                </div>
+                <div className="stat-pill">
+                  <div className="stat-pill-value">&lt;10s</div>
+                  <div className="stat-pill-label">From submit to settled payout</div>
+                </div>
+                <div className="stat-pill">
+                  <div className="stat-pill-value">$0.01</div>
+                  <div className="stat-pill-label">Per AI verification, pay-per-call</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="how-it-works">
+              <div className="how-step">
+                <span className="how-step-num">1</span>
+                <h3>Configure &amp; fund</h3>
+                <p>Set a price per approved response and fund the pot once — by card, crypto, or a Privy wallet.</p>
+              </div>
+              <div className="how-step">
+                <span className="how-step-num">2</span>
+                <h3>Respondents answer</h3>
+                <p>An AI agent judges quality and fraud signals in real time; every verdict is anchored on Hedera.</p>
+              </div>
+              <div className="how-step">
+                <span className="how-step-num">3</span>
+                <h3>Instant, walletless payout</h3>
+                <p>A quick World ID Selfie Check proves uniqueness, and the payout lands — no crypto knowledge needed.</p>
+              </div>
+            </div>
+
+            <div className="pitch-banner">
+              <h2>This is what mainstream crypto adoption actually looks like.</h2>
+              <p>
+                Not another wallet app competing for attention — real, instant money moving to real people
+                through a tool 700 million of them already use every day. FormDrop meets people where they
+                already are, and lets Hedera, World ID, and Privy do the trust work invisibly underneath.
+              </p>
+            </div>
+          </div>
+        </>
+      ) : view === "list" ? (
+        <div className="shell">
+          <div className="forms-toolbar">
+            <h1>Your forms</h1>
+          </div>
+          {loadingForms ? (
+            <p className="hint">Loading your forms…</p>
+          ) : (
+            <div className="forms-grid">
+              <button className="new-form-tile" onClick={startNewForm}>
+                <span className="plus-icon">+</span>
+                New form
+              </button>
+              {forms?.map((f) => (
+                <div
+                  key={f.formId}
+                  className="form-tile"
+                  onClick={() => openForm(f)}
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openForm(f)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span className={`badge ${f.funded ? "funded" : "unfunded"}`}>
+                    {f.funded ? "Funded" : "Not funded"}
+                  </span>
+                  <div className="form-tile-id">{f.formId}</div>
+                  <div className="form-tile-stats">
+                    <div>
+                      <div className="value">{f.received}</div>
+                      <div className="label">Received</div>
+                    </div>
+                    <div>
+                      <div className="value">{f.approved}</div>
+                      <div className="label">Approved</div>
+                    </div>
+                  </div>
+                  <div className="progress-track">
+                    <div
+                      className="progress-fill"
+                      style={{
+                        width: `${
+                          BigInt(f.potTinybar) > BigInt(0)
+                            ? Math.min(
+                                100,
+                                Number(
+                                  ((BigInt(f.potTinybar) - BigInt(f.remainingBudgetTinybar)) * BigInt(1000)) /
+                                    BigInt(f.potTinybar),
+                                ) / 10,
+                              )
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {forms?.length === 0 && !loadingForms && (
+            <p className="hint" style={{ marginTop: 14 }}>
+              No forms yet — create your first one to fund a payout pot.
+            </p>
+          )}
         </div>
       ) : (
-        <>
-          <div className="stepper">
-            <div className={`step ${configureDone ? "done" : "active"}`}>
-              <span className="step-dot">{configureDone ? "✓" : "1"}</span>
-              <span className="step-label">Configure</span>
-            </div>
-            <div className={`step-line ${configureDone ? "done" : ""}`} />
-            <div className={`step ${fundDone ? "done" : configureDone ? "active" : ""}`}>
-              <span className="step-dot">{fundDone ? "✓" : "2"}</span>
-              <span className="step-label">Fund</span>
-            </div>
-            <div className={`step-line ${fundDone ? "done" : ""}`} />
-            <div className={`step ${fundDone ? "active" : ""}`}>
-              <span className="step-dot">3</span>
-              <span className="step-label">Track</span>
+        <div className="shell">
+          <div className="detail-header">
+            <div className="detail-header-left">
+              <button className="ghost" onClick={backToList}>
+                ← Your forms
+              </button>
+              {stats && (
+                <>
+                  <LogoMark size={22} />
+                  <span className="form-id-tag">{stats.formId}</span>
+                  <span className={`badge ${stats.funded ? "funded" : "unfunded"}`}>
+                    {stats.funded ? "Funded" : "Not funded yet"}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
-          <h2 className="section-title">
-            <span className="section-num">1</span>Configure payout
-          </h2>
-          <div className="card">
-            <label htmlFor="formId">Google Form ID</label>
-            <input id="formId" value={formId} onChange={(e) => setFormId(e.target.value)} />
+          {view === "new" || !stats?.funded ? (
+            <>
+              <h2 className="section-title">
+                <span className="section-num">1</span>
+                Configure payout
+                {stats && (
+                  <button className="ghost" style={{ marginLeft: "auto" }} onClick={() => setShowEditor((v) => !v)}>
+                    {showEditor ? "Hide" : "Edit"}
+                  </button>
+                )}
+              </h2>
+              {(showEditor || !stats) && (
+                <div className="card">
+                  <label htmlFor="formId">Google Form ID</label>
+                  <input
+                    id="formId"
+                    value={formId}
+                    onChange={(e) => setFormId(e.target.value)}
+                    disabled={!!stats}
+                    placeholder="1FAIpQLS…"
+                  />
 
-            <label htmlFor="price">Price per approved response (HBAR)</label>
-            <input
-              id="price"
-              type="number"
-              min="0"
-              step="0.01"
-              value={priceHbar}
-              onChange={(e) => setPriceHbar(e.target.value)}
-            />
+                  <label htmlFor="price">Price per approved response (HBAR)</label>
+                  <input
+                    id="price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={priceHbar}
+                    onChange={(e) => setPriceHbar(e.target.value)}
+                  />
 
-            <label htmlFor="max">Max responses</label>
-            <input
-              id="max"
-              type="number"
-              min="1"
-              value={maxResponses}
-              onChange={(e) => setMaxResponses(Number(e.target.value))}
-            />
+                  <label htmlFor="max">Max responses</label>
+                  <input
+                    id="max"
+                    type="number"
+                    min="1"
+                    value={maxResponses}
+                    onChange={(e) => setMaxResponses(Number(e.target.value))}
+                  />
 
-            <button onClick={handleSave} disabled={saving}>
-              {saving && <span className="spinner" />}
-              {saving ? "Saving…" : configureDone ? "Update parameters" : "Save parameters"}
-            </button>
-            {error && <p className="error">⚠ {error}</p>}
-          </div>
+                  <button onClick={handleSave} disabled={saving || !formId}>
+                    {saving && <span className="spinner" />}
+                    {saving ? "Saving…" : stats ? "Update parameters" : "Save parameters"}
+                  </button>
+                  {error && <p className="error">⚠ {error}</p>}
+                </div>
+              )}
+            </>
+          ) : null}
 
           {stats && (
             <>
-              <h2 className="section-title">
-                <span className="section-num">2</span>Fund the pot
-              </h2>
-              <div className="card">
-                <span className={`badge ${stats.funded ? "funded" : "unfunded"}`}>
-                  {stats.funded ? "Funded" : "Not funded yet"}
-                </span>
-                <p className="hint">
-                  Pot needed: <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> ({stats.maxResponses}{" "}
-                  responses × {tinybarToHbar(stats.pricePerResponseTinybar)} HBAR)
-                </p>
-                {!stats.funded ? (
-                  <>
+              {!stats.funded && (
+                <>
+                  <h2 className="section-title">
+                    <span className="section-num">2</span>Fund the pot
+                  </h2>
+                  <div className="card">
+                    <p className="hint">
+                      Pot needed: <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> ({stats.maxResponses}{" "}
+                      responses × {tinybarToHbar(stats.pricePerResponseTinybar)} HBAR)
+                    </p>
                     <div className="tabs" style={{ marginTop: 14 }}>
                       <button
                         className={fundingMethod === "card" ? "" : "secondary"}
@@ -290,7 +488,7 @@ export default function CreatorConsole() {
                       </>
                     ) : (
                       <>
-                        <div className="tabs" style={{ marginBottom: 14 }}>
+                        <div className="tabs" style={{ marginBottom: 14, marginTop: 14 }}>
                           <button
                             className={cryptoAsset === "HBAR" ? "" : "secondary"}
                             onClick={() => setCryptoAsset("HBAR")}
@@ -344,16 +542,13 @@ export default function CreatorConsole() {
                         </button>
                       </>
                     )}
-                  </>
-                ) : (
-                  <p className="hint mono" style={{ marginTop: 14 }}>
-                    tx: {stats.fundingTransactionId}
-                  </p>
-                )}
-              </div>
+                    {error && <p className="error">⚠ {error}</p>}
+                  </div>
+                </>
+              )}
 
               <h2 className="section-title">
-                <span className="section-num">3</span>Live dashboard
+                <span className="section-num">{stats.funded ? "1" : "3"}</span>Live dashboard
               </h2>
               <div className="card">
                 <div className="stat-grid">
@@ -389,7 +584,7 @@ export default function CreatorConsole() {
               </div>
 
               <h2 className="section-title">
-                <span className="section-num">4</span>Responses
+                <span className="section-num">{stats.funded ? "2" : "4"}</span>Responses
               </h2>
               <div className="card">
                 {responses.length === 0 ? (
@@ -464,7 +659,7 @@ export default function CreatorConsole() {
               </div>
             </>
           )}
-        </>
+        </div>
       )}
     </main>
   );

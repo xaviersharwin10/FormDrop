@@ -26,12 +26,19 @@ export function saveFormConfig(input: {
   formId: string;
   pricePerResponseTinybar: string;
   maxResponses: number;
+  creatorId: string;
 }) {
   return fetch(`${BASE_URL}/forms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   }).then((res) => asJson<FormStats>(res));
+}
+
+export function getFormsForCreator(creatorId: string) {
+  return fetch(`${BASE_URL}/creators/${encodeURIComponent(creatorId)}/forms`).then((res) =>
+    asJson<FormStats[]>(res),
+  );
 }
 
 export function getTreasuryAccountId(formId: string) {
