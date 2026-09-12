@@ -864,3 +864,53 @@ where it was, so the next notification re-fetches (and safely no-ops on,
 via the same `responses` table primary-key check every trigger source
 already relies on) whatever already succeeded, while the failure itself
 gets a real retry instead of being silently skipped forever.
+
+## 2026-09-12 — Google Forms push notifications: real latency measured, two bugs fixed during setup
+
+The latency question left open above ("usually within minutes" per
+Google's docs, plus a live Issue Tracker bug about delayed push
+notifications) is now answered empirically, not assumed: a real end-to-end
+test — submit a live Google Form response, watch it land at
+`POST /webhooks/forms-push` — was **instantaneous**, not "minutes." The
+Apps Script path's latency advantage over this one turned out to not
+exist in practice, at least at this traffic volume.
+
+Two real bugs surfaced during first setup, both fixed before this worked:
+
+1. **Missing OAuth scope.** `getQuestionTitles()` calls `forms.get` (the
+   form's structure/questions), which needs `forms.body.readonly` —
+   a separate scope from `forms.responses.readonly` (which only covers
+   reading response data). Requesting only the latter produced a
+   `403 ACCESS_TOKEN_SCOPE_INSUFFICIENT`. Fixed by adding
+   `forms.body.readonly` to `GOOGLE_FORMS_OAUTH_SCOPE` in
+   `googleFormsAuth.ts`; anyone already connected under the old scope had
+   to reconnect (the OAuth flow's `prompt=consent` forces a fresh consent
+   screen, and `upsertGoogleAccount`'s `ON CONFLICT (creator_id) DO
+   UPDATE` overwrites the stored refresh token — no separate "disconnect"
+   step needed).
+
+2. **`v1beta` no longer exists.** `watches.create`/`watches.renew` were
+   called against `forms.googleapis.com/v1beta`, matching what was
+   confirmed in Google's docs when this feature was built a day earlier.
+   By the time it was actually tested, `v1beta` had been fully retired —
+   confirmed by fetching the API's own discovery document
+   (`$discovery/rest?version=v1beta` returns 404; `version=v1` returns a
+   200 with `watches` now listed under the stable `forms` resource,
+   discovery revision dated 2026-09-06). Google graduated Watches out of
+   beta in the days between this feature being designed and being tested.
+   Fixed by pointing `googleFormsApi.ts` at `v1` for every Forms API call,
+   removing the separate beta base URL entirely.
+
+Also confirmed (not assumed) that the Pub/Sub topic already had **Pub/Sub
+Publisher** granted to Google's own `forms-notifications@system.gserviceaccount.com`
+— the prerequisite for Forms to be allowed to publish into the topic at
+all, separate from the push-invoker service account's Service Account
+Token Creator grant (that one governs delivery *to us*, this one governs
+Forms' ability to publish *into the topic* in the first place).
+
+**Decided against setting up the daily `/internal/renew-watches` cron
+ping.** Watches expire 7 days after creation; the submission deadline
+(2026-09-13, 9:30 PM) is under 24 hours out from when this was tested, so
+no watch registered now will outlive the deadline. The renewal endpoint
+stays in the code (harmless, and correct if this project has a life after
+submission) but isn't wired to a scheduler.
