@@ -22,6 +22,7 @@
  * The script prints a refresh token — paste it into .env as
  * GOOGLE_OAUTH_REFRESH_TOKEN (and into Render's env vars for production).
  */
+import "dotenv/config";
 import { createServer } from "node:http";
 
 const PORT = 53682;

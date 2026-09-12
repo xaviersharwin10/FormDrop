@@ -1,91 +1,31 @@
-World ID / Selfie Check feedback — FormDrop (ETHOnline 2026)
+# World ID / Selfie Check feedback — FormDrop (ETHOnline 2026)
 
-I integrated Selfie Check as the "prove you're a real, unique human before
-you get paid" gate on a Google Forms payout tool. Below is what actually
-happened while building it, not a polished pitch. Writing this right after
-finishing the integration so it's fresh.
+Selfie Check is the "prove you're a real, unique human before you get paid" gate on a Google Forms payout tool. Notes below are from actually building it — written right after finishing the integration, not polished after the fact.
 
-Docs / integration flow
+## Docs & integration flow
 
-The documented request pattern (sign an RP context server-side, hand it to
-the client, forward the resulting proof to v4/verify) is followable and I
-didn't have to guess at the protocol shape — that part's genuinely fine.
-Two things did trip me up though:
+- The core request pattern (sign an RP context server-side, hand it to the client, forward the resulting proof to `v4/verify`) is followable as documented — didn't have to guess at the protocol shape.
+- **Confusing:** both `@worldcoin/idkit-server` and `@worldcoin/idkit-core` export `signRequest`, and nothing in the docs made it obvious which one a plain Node backend should use. `idkit-core` pulls in the full client-capable bundle (WASM and all) — dead weight on a server that never renders anything. Only found the split by reading the installed `.d.ts` files directly. A one-line "backend-only? use `idkit-server`" in the docs would've saved ~20 minutes.
+- **Minor:** `allow_legacy_proofs: true` is a required (non-optional) field on `IDKitRequestConfig` even when using the `selfieCheckLegacy` preset. Expected the preset name to imply it — reads as a redundant declaration, made me stop and double-check I wasn't missing a step.
 
-There are two packages that both export `signRequest` —
-`@worldcoin/idkit-server` and `@worldcoin/idkit-core` — and nothing in the
-docs I read made it obvious which one a plain Node backend should use.
-`idkit-core` drags in the full client-capable bundle (WASM and all), which
-is dead weight on a server that never renders anything. I only figured out
-the split by going and reading the actual installed `.d.ts` files instead
-of trusting the docs page. Would've saved me twenty minutes if the docs
-just said "backend-only? use idkit-server."
+## Developer Portal
 
-Second, `allow_legacy_proofs: true` is a required field (not optional in
-the type) on `IDKitRequestConfig`, even when you're using the
-`selfieCheckLegacy` preset. If the preset name already says "legacy," I
-expected that flag to be implied, not something I have to also set myself.
-Small thing, but it made me stop and double check I wasn't missing a step,
-since it reads like a redundant declaration.
+- Creating the app and grabbing `app_id` / `rp_id` / `signing_key` — straightforward, no complaints.
+- **Biggest time sink in the whole integration:** Selfie Check needs a feature flag enabled on your app, and it's not self-serve from the dashboard — you have to find a World contact and ask them to flip it, even for sandbox testing. Nothing in the portal UI surfaces that this flag exists or is missing. Found out only by trying a real Selfie Check, having it silently not work, and asking around.
 
-Developer Portal
+## Sandbox / test flow
 
-Creating the app and grabbing `app_id` / `rp_id` / `signing_key` was
-straightforward, no complaints there. The real friction was this: Selfie
-Check needs a feature flag turned on for your app, and that's not something
-you can self-serve from the dashboard — you have to go find a World contact
-and ask them to flip it, even just for sandbox testing. Nothing in the
-portal UI told me this flag existed or that I needed it. I found out by
-trying a real Selfie Check, having it silently not work the way I expected,
-and asking around. If there's a way to see "this app is missing the Selfie
-Check flag" directly in the dashboard, I never found it — and that was the
-single biggest time sink in the whole integration, more than any code
-issue.
+- Once the flag was on: installed the sandbox app on Android, scanned the QR from the claim page, completed a real Selfie Check, got a valid proof back. Clean, no complaints about the scan flow itself.
+- **Worked well:** even before the flag was enabled, could still test plumbing end-to-end by sending a deliberately invalid proof to the real `v4/verify` endpoint and confirming it round-tripped and got rejected correctly. Proved RP signing + verify-call wiring were correct independent of whether Selfie Check access was live — wasn't fully blocked while waiting on the flag.
+- **Gap:** no discoverable sandbox mechanism for simulating a second distinct identity, to test our own anti-abuse check (one payout per real human per form — the nullifier-reuse path). Ended up testing that logic against captured Mirror Node data instead of the sandbox app, since it needs an actual second device + second real face otherwise.
 
-Sandbox app / test flow
+## The one actual bug (not a docs gap)
 
-Once the flag was on, the actual device flow worked well — installed the
-sandbox app on an Android phone, scanned the QR code from the claim page on
-a desktop browser, completed a real Selfie Check, got a valid proof back.
-No complaints about the scan flow itself.
+- Our creator dashboard had registered a form under its public **viewform** id, while the claim link's backend lookup used the form's **edit** id — two different ids for the same Google Form. So when a respondent claimed, our backend looked up an id it didn't recognize and returned 404 — a bug entirely on our side, and it happened *after* the World ID proof itself had already verified successfully.
+- IDKit's widget caught that downstream rejection and showed its own generic message: **"Verification declined — Failed to verify your credential proof. Please contact the website owner."** — identical to what a real invalid-proof rejection looks like.
+- This cost real debugging time: re-checked our RP signing and verify-call wiring first, before realizing the actual failure was downstream of a *successful* verification, in our own code.
+- **Ask:** make `handleVerify`-thrown errors distinguishable, in the UI, from actual proof-verification failures. Right now they're identical to both the end user and the developer watching the screen.
 
-One thing worth mentioning: before the flag was enabled, I could still
-partially test my own plumbing by sending a deliberately invalid proof and
-confirming it round-tripped to the real v4/verify endpoint and got rejected
-correctly. That was actually useful — it let me prove my RP signing and
-verify-call wiring were correct independent of whether Selfie Check access
-was live yet, so at least I wasn't fully blocked while waiting on the flag.
-I'd call that out as something that worked well, not just complaints.
+## Net take
 
-What I couldn't easily test: reusing the same nullifier from a second
-identity (my anti-abuse check — one payout per person per form). There's no
-obvious way in the sandbox to simulate "a different real person" without an
-actual second device and a second real face, so I ended up verifying that
-path with unit tests against captured Mirror Node data instead of the
-sandbox app. If there's a sandbox mechanism for generating multiple
-distinct test identities without needing multiple physical humans, it
-wasn't discoverable to me.
-
-What was actually broken/confusing
-
-This is the one I'd flag as an actual bug, not a docs gap. When my own
-backend rejected a claim for an unrelated reason (a 404, because the form
-hadn't been registered on my side yet — nothing to do with the proof
-itself), IDKit's widget caught that rejection and showed the user its own
-generic message: "Verification declined — Failed to verify your credential
-proof. Please contact the website owner." That's misleading. The proof
-itself was already valid by that point — my own server-side code failed
-*after* verification succeeded, for a completely separate reason. But the
-UI text tells the user (and tells me, the first time I saw it) that Selfie
-Check itself failed. That cost me real debugging time, because I went and
-re-checked my World ID plumbing before I realized the actual bug was
-somewhere else entirely. I'd really like `handleVerify` failures to be
-distinguishable in the UI from actual proof-verification failures — right
-now they look identical to the end user and to the developer watching the
-screen.
-
-Net take: once the sandbox flag was on, the actual verification mechanics
-were solid and did exactly what the docs said they'd do. The two things
-I'd change are making the sandbox feature-flag requirement discoverable
-without having to ask a human, and not collapsing "your app's backend threw
-an error" and "the proof was invalid" into the same error message.
+Once the sandbox flag was on, the actual verification mechanics were solid and did exactly what the docs said. Two changes would help most: make the sandbox feature-flag requirement discoverable without asking a human, and stop collapsing "your app's backend threw an error" and "the proof was invalid" into the same error message.
