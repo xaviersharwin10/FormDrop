@@ -564,22 +564,21 @@ export default function CreatorConsole() {
               </h2>
               {(showEditor || !stats) && (
                 <div className="card">
-                  <label htmlFor="formId">Google Form ID</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input
-                      id="formId"
-                      value={formId}
-                      onChange={(e) => setFormId(e.target.value)}
-                      disabled={!!stats}
-                      placeholder="1FAIpQLS…"
-                      style={{ flex: 1 }}
-                    />
-                    {!stats && (
-                      <button type="button" className="secondary" onClick={handlePickFromDrive}>
-                        Pick from Drive
-                      </button>
-                    )}
-                  </div>
+                  <label>Google Form</label>
+                  {formId ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <HashChip value={formId} href={`https://docs.google.com/forms/d/${formId}/edit`} label="Form" />
+                      {!stats && (
+                        <button type="button" className="secondary" onClick={handlePickFromDrive}>
+                          Change
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button type="button" onClick={handlePickFromDrive} style={{ marginBottom: 14 }}>
+                      Pick from Drive
+                    </button>
+                  )}
 
                   <label htmlFor="price">Price per approved response (HBAR)</label>
                   <input
