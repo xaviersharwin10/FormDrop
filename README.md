@@ -87,6 +87,8 @@ flowchart TD
         A -->|"1. fund via Privy wallet<br/>signed contract call"| ESC
     end
 
+    ESC -.->|"pot ready"| B
+
     subgraph AUTOMATIC[" ⚡ EVERY RESPONSE — fully automatic "]
         B["📋 Respondent submits a Google Form<br/>700M+ people already use this"]
         PS["📡 Pub/Sub push notification<br/>near-instant, zero install"]
