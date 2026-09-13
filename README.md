@@ -149,49 +149,26 @@ architectural nicety.
 
 ## Setup
 
-Requires Node.js 20+ and pnpm. Every claim above is backed by a real,
-independently-checkable transaction or API call — proof links are in
-**Sponsor integrations**; the full planning log, every empirical finding,
-and the AI-assisted-development disclosure this event requires all live in
-[`specs/DECISIONS.md`](specs/DECISIONS.md). Full project description:
-[`specs/PROJECT.md`](specs/PROJECT.md).
+Requires Node.js 20+ and pnpm.
 
 ```
 pnpm install
 ```
 
-Each service reads its own `.env` — copy from the matching `.env.example`
-(`services/resource-server/`, `services/orchestrator/`, `apps/web/.env.local`)
-and fill in credentials from the accounts below.
+Full step-by-step instructions to run all three services locally and
+replicate every integration — Hedera, Gemini, Privy, World ID, Postgres,
+Google Forms/Pub/Sub, the escrow contract, all of it — are in
+[`SETUP.md`](SETUP.md). Every claim in this README is backed by a real,
+independently-checkable transaction or API call — proof links are in
+**Sponsor integrations** above; the full planning log, every empirical
+finding, and the AI-assisted-development disclosure this event requires
+all live in [`specs/DECISIONS.md`](specs/DECISIONS.md). Full project
+description: [`specs/PROJECT.md`](specs/PROJECT.md).
 
-| Needed for | Get it from |
-| :--- | :--- |
-| Hedera testnet account (ECDSA key) | [portal.hedera.com](https://portal.hedera.com) — free, instant, includes test HBAR |
-| Gemini API key | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) — free tier |
-| Privy app | [privy.io](https://privy.io) — free tier |
-| World ID app | [developer.world.org](https://developer.world.org) — Selfie Check needs an extra flag enabled by a World rep |
-| Postgres | [supabase.com](https://supabase.com) — use the **pooler** connection string, not the direct one |
-| Google Cloud project | enable Forms API, Gmail API, Cloud Pub/Sub API, Google Picker API; create OAuth clients as described in `.env.example` comments |
-| Stripe (optional, card funding) | [dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys) — test mode, no billing needed |
-
-One-time setup scripts (run from repo root, after the matching `.env` exists):
-
-| Script | What it does |
-| :--- | :--- |
-| `pnpm --filter @formdrop/orchestrator db:migrate` | Applies the Postgres schema (idempotent) |
-| `pnpm --filter @formdrop/orchestrator hedera:deploy-escrow` | Compiles + deploys `FormDropEscrow.sol`, prints `ESCROW_CONTRACT_ID` |
-| `pnpm --filter @formdrop/orchestrator hedera:setup-usdc-pay-to-account` | Creates + associates an account to receive x402 USDC payments |
-| `pnpm --filter @formdrop/orchestrator hcs:setup-topic` | Creates the public HCS audit topic |
-| `pnpm --filter @formdrop/orchestrator gmail:setup-oauth` | One-time OAuth flow; prints the refresh token used to send claim emails |
-| `pnpm --filter @formdrop/orchestrator privy:setup-policy` | Creates the receive-only policy for respondent payout wallets |
-| `pnpm --filter @formdrop/orchestrator privy:setup-creator-authorization-key` | Creates the key-quorum authorization key for the creator funding wallet |
-
-Run each service: `pnpm dev:resource-server`, `pnpm dev:orchestrator`,
-`pnpm dev:web`. All three also deploy together from one
-[`render.yaml`](render.yaml) blueprint on [render.com](https://render.com)
-(New → Blueprint) — public identifiers are inlined in the committed file,
-every real secret is `sync: false` so Render prompts for it instead of it
-ever living in git.
+All three services deploy together from one [`render.yaml`](render.yaml)
+blueprint on [render.com](https://render.com) (New → Blueprint) — public
+identifiers are inlined in the committed file, every real secret is
+`sync: false` so Render prompts for it instead of it ever living in git.
 
 ## Roadmap
 
