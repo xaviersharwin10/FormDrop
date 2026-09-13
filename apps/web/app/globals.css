@@ -698,6 +698,44 @@ button.full {
   background: rgba(255, 255, 255, 0.6);
 }
 
+/* ---------- Funding options ---------- */
+
+.funding-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .funding-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.funding-option {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.funding-option h3 {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+
+.funding-option .mono {
+  font-size: 11.5px;
+  margin: 8px 0 4px;
+  word-break: break-all;
+}
+
+.funding-option button {
+  margin-top: auto;
+}
+
 /* ---------- Stat grid ---------- */
 
 .stat-grid {

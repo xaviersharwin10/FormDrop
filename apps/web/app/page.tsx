@@ -746,123 +746,99 @@ export default function CreatorConsole() {
                         </button>
                       </>
                     ) : fundingMethod === "privy" ? (
-                      <>
-                        <p className="hint">
-                          A Privy-custodied wallet, provisioned just for this form — separate from your own
-                          login wallet, since we hold no key of yours. Send it at least{" "}
-                          <strong>{tinybarToHbar(stats.privyFundingMinimumTinybar)} HBAR</strong> (the{" "}
-                          {tinybarToHbar(stats.potTinybar)} HBAR pot plus a small network-fee buffer, since
-                          this wallet also pays the on-chain escrow contract's own transaction fee) from a
-                          testnet faucet or wallet of your own, then fund the pot with one click — the
-                          transfer out of this wallet is authorized by a live Privy signature, not a key we
-                          hold ourselves.
-                        </p>
-                        <p className="mono">{privyWalletAddress ?? "Loading…"}</p>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            marginTop: 6,
-                            marginBottom: 14,
-                          }}
-                        >
-                          <span className="hint" style={{ margin: 0 }}>
-                            Balance:{" "}
-                            <strong>
-                              {privyWalletBalanceTinybar === null
-                                ? "…"
-                                : `${tinybarToHbar(privyWalletBalanceTinybar)} HBAR`}
-                            </strong>
-                          </span>
+                      <div className="funding-options">
+                        <div className="funding-option">
+                          <h3>Fund from your wallet</h3>
+                          <p className="hint">The wallet you're logged in with. One click, you sign.</p>
+                          <p className="mono">{ownWalletAddress ?? "Loading…"}</p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                            <span className="hint" style={{ margin: 0 }}>
+                              Balance:{" "}
+                              <strong>
+                                {ownWalletBalanceTinybar === null
+                                  ? "…"
+                                  : `${tinybarToHbar(ownWalletBalanceTinybar)} HBAR`}
+                              </strong>
+                            </span>
+                            <button
+                              type="button"
+                              className="secondary"
+                              style={{ padding: "2px 10px", fontSize: 12 }}
+                              onClick={refreshOwnWalletBalance}
+                              disabled={checkingOwnWalletBalance || !ownWalletAddress}
+                            >
+                              {checkingOwnWalletBalance ? "Checking…" : "Refresh"}
+                            </button>
+                          </div>
+                          {ownWalletBalanceTinybar !== null &&
+                            BigInt(ownWalletBalanceTinybar) < BigInt(stats.potTinybar) && (
+                              <p className="hint" style={{ color: "var(--danger, #b45309)" }}>
+                                <WarningIcon size={13} /> Needs {tinybarToHbar(stats.potTinybar)} HBAR — send
+                                it from a faucet, then Refresh.
+                              </p>
+                            )}
                           <button
-                            type="button"
-                            className="secondary"
-                            style={{ padding: "2px 10px", fontSize: 12 }}
-                            onClick={refreshPrivyWalletBalance}
-                            disabled={checkingBalance || !privyWalletAddress}
+                            onClick={handleFundFromOwnWallet}
+                            disabled={
+                              fundingFromOwnWallet ||
+                              !ownWalletAddress ||
+                              !escrowEvmAddress ||
+                              ownWalletBalanceTinybar === null ||
+                              BigInt(ownWalletBalanceTinybar) < BigInt(stats.potTinybar)
+                            }
                           >
-                            {checkingBalance ? "Checking…" : "Refresh"}
+                            {fundingFromOwnWallet && <span className="spinner" />}
+                            {fundingFromOwnWallet ? "Signing…" : "Fund from your wallet"}
                           </button>
                         </div>
-                        {privyWalletBalanceTinybar !== null &&
-                          BigInt(privyWalletBalanceTinybar) < BigInt(stats.privyFundingMinimumTinybar) && (
-                            <p className="hint" style={{ color: "var(--danger, #b45309)" }}>
-                              <WarningIcon size={14} /> This wallet doesn't have enough testnet HBAR yet — send
-                              it the amount above from a faucet or another wallet, then hit Refresh before
-                              funding.
-                            </p>
-                          )}
-                        <button
-                          onClick={handleFundWithPrivy}
-                          disabled={
-                            fundingWithPrivy ||
-                            !privyWalletAddress ||
-                            privyWalletBalanceTinybar === null ||
-                            BigInt(privyWalletBalanceTinybar) < BigInt(stats.privyFundingMinimumTinybar)
-                          }
-                        >
-                          {fundingWithPrivy && <span className="spinner" />}
-                          {fundingWithPrivy ? "Signing with Privy…" : "Fund from Privy wallet"}
-                        </button>
 
-                        <p className="hint" style={{ marginTop: 20, fontWeight: 600 }}>
-                          — or fund from your own wallet —
-                        </p>
-                        <p className="hint">
-                          The wallet you're already logged in with. Send it at least{" "}
-                          <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> from a testnet faucet, then
-                          sign one transaction — no extra address to keep track of.
-                        </p>
-                        <p className="mono">{ownWalletAddress ?? "Loading…"}</p>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            marginTop: 6,
-                            marginBottom: 14,
-                          }}
-                        >
-                          <span className="hint" style={{ margin: 0 }}>
-                            Balance:{" "}
-                            <strong>
-                              {ownWalletBalanceTinybar === null
-                                ? "…"
-                                : `${tinybarToHbar(ownWalletBalanceTinybar)} HBAR`}
-                            </strong>
-                          </span>
+                        <div className="funding-option">
+                          <h3>Fund from Privy wallet</h3>
+                          <p className="hint">
+                            A separate wallet we provision for this form — we hold no key of yours, a live
+                            Privy signature authorizes each transfer.
+                          </p>
+                          <p className="mono">{privyWalletAddress ?? "Loading…"}</p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                            <span className="hint" style={{ margin: 0 }}>
+                              Balance:{" "}
+                              <strong>
+                                {privyWalletBalanceTinybar === null
+                                  ? "…"
+                                  : `${tinybarToHbar(privyWalletBalanceTinybar)} HBAR`}
+                              </strong>
+                            </span>
+                            <button
+                              type="button"
+                              className="secondary"
+                              style={{ padding: "2px 10px", fontSize: 12 }}
+                              onClick={refreshPrivyWalletBalance}
+                              disabled={checkingBalance || !privyWalletAddress}
+                            >
+                              {checkingBalance ? "Checking…" : "Refresh"}
+                            </button>
+                          </div>
+                          {privyWalletBalanceTinybar !== null &&
+                            BigInt(privyWalletBalanceTinybar) < BigInt(stats.privyFundingMinimumTinybar) && (
+                              <p className="hint" style={{ color: "var(--danger, #b45309)" }}>
+                                <WarningIcon size={13} /> Needs {tinybarToHbar(stats.privyFundingMinimumTinybar)}{" "}
+                                HBAR (pot + fee buffer) — send it from a faucet, then Refresh.
+                              </p>
+                            )}
                           <button
-                            type="button"
-                            className="secondary"
-                            style={{ padding: "2px 10px", fontSize: 12 }}
-                            onClick={refreshOwnWalletBalance}
-                            disabled={checkingOwnWalletBalance || !ownWalletAddress}
+                            onClick={handleFundWithPrivy}
+                            disabled={
+                              fundingWithPrivy ||
+                              !privyWalletAddress ||
+                              privyWalletBalanceTinybar === null ||
+                              BigInt(privyWalletBalanceTinybar) < BigInt(stats.privyFundingMinimumTinybar)
+                            }
                           >
-                            {checkingOwnWalletBalance ? "Checking…" : "Refresh"}
+                            {fundingWithPrivy && <span className="spinner" />}
+                            {fundingWithPrivy ? "Signing with Privy…" : "Fund from Privy wallet"}
                           </button>
                         </div>
-                        {ownWalletBalanceTinybar !== null &&
-                          BigInt(ownWalletBalanceTinybar) < BigInt(stats.potTinybar) && (
-                            <p className="hint" style={{ color: "var(--danger, #b45309)" }}>
-                              <WarningIcon size={14} /> This wallet doesn't have enough testnet HBAR yet — send
-                              it the amount above from a faucet, then hit Refresh before funding.
-                            </p>
-                          )}
-                        <button
-                          onClick={handleFundFromOwnWallet}
-                          disabled={
-                            fundingFromOwnWallet ||
-                            !ownWalletAddress ||
-                            !escrowEvmAddress ||
-                            ownWalletBalanceTinybar === null ||
-                            BigInt(ownWalletBalanceTinybar) < BigInt(stats.potTinybar)
-                          }
-                        >
-                          {fundingFromOwnWallet && <span className="spinner" />}
-                          {fundingFromOwnWallet ? "Signing…" : "Fund from your wallet"}
-                        </button>
-                      </>
+                      </div>
                     ) : (
                       <>
                         <div className="tabs" style={{ marginBottom: 14, marginTop: 14 }}>
