@@ -88,7 +88,7 @@ flowchart TD
         C["⚙️ Orchestrator<br/>the paying x402 client"]
         D["🤖 Resource Server<br/>Gemini AI judges quality + fraud"]
         E["🔗 Hedera Consensus Service<br/>verdict anchored — public, tamper-evident audit trail"]
-        B -->|"2. Apps Script webhook,<br/>or a Google Forms push notification"| C
+        B -->|"2. Google Forms push notification"| C
         C -->|"3. x402 payment<br/>settled on Hedera"| D
         D -->|"4. verdict returned"| E
     end
@@ -128,12 +128,11 @@ architectural nicety.
 ```
 apps/
   web/            Next.js — creator console + respondent claim page (Selfie Check -> payout)
-  apps-script/    Standalone Google Apps Script — watches any number of forms
 services/
   resource-server/  Fastify — x402-gated verification service (the "service" being sold)
   orchestrator/     Fastify — webhook receiver, paying x402 client, HCS anchoring, payouts, email
                     src/db/  Postgres schema + client (forms, responses, used_nullifiers)
-                    src/googleForms*.ts  Google Forms push-notification onboarding (no Apps Script)
+                    src/googleForms*.ts  Google Forms push-notification onboarding
 packages/
   shared/         Shared TypeScript types/utilities
 specs/            Planning docs and AI-assisted-workflow disclosure artifacts
@@ -351,11 +350,9 @@ it on the Mirror Node:
      funding section below.
    The dashboard below polls orchestrator's `/forms/:formId/stats` live.
 
-### Google Forms push notifications (connect any form, no Apps Script)
+### Google Forms push notifications (connect any form, zero install)
 
-The Apps Script path above still works, but it requires installing and
-authorizing a script per creator. This is the zero-install alternative:
-click **Connect Google Forms** in the console, approve one OAuth consent
+Click **Connect Google Forms** in the console, approve one OAuth consent
 screen, then **Enable instant notifications** on any form — no script
 editor, no code, works for anyone viewing this project.
 
@@ -400,11 +397,10 @@ expiring within 2 days, meant to be pinged by a daily scheduled job.
 
 **Proof this works end to end:** connected a second Google account
 (distinct from the account driving the existing demo form), registered a
-brand-new form for notifications — deliberately never added to Apps
-Script's `FORM_IDS` — submitted a real response through its public
-viewform link, and watched it arrive at `/webhooks/forms-push` and settle
-through the full pipeline. Delivery was instantaneous, not the "usually
-within minutes" Google's own docs hedge on.
+brand-new form for notifications, submitted a real response through its
+public viewform link, and watched it arrive at `/webhooks/forms-push` and
+settle through the full pipeline. Delivery was instantaneous, not the
+"usually within minutes" Google's own docs hedge on.
 
 ### Google Picker (pick a form from Drive, no manual ID)
 

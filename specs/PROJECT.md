@@ -33,7 +33,7 @@ The second problem is fraud: paying everyone who submits invites bots, copy-past
 
 ## Distribution reality
 
-A real Google Workspace Marketplace listing requires Google's review process (weeks) and isn't happening within a hackathon timeline. This ships as a container-bound Apps Script installed on a demo form — functionally identical for anyone trying it, since the respondent side is fully public: anyone with the form link can fill it out and get paid for real, no install needed on their end. The creator side (installing the script, funding the pot) is shown in the demo video. A Workspace Marketplace listing is the natural next step post-hackathon.
+A real Google Workspace Marketplace listing requires Google's review process (weeks) and isn't happening within a hackathon timeline. Instead of a script a creator has to install per form, the console has a **Connect Google Forms** button: one OAuth consent, then any form is a one-click **Enable instant notifications** away — no script editor, no code, delivered via the Forms API's push-notification watches over Cloud Pub/Sub. The respondent side is, as ever, fully public: anyone with the form link can fill it out and get paid for real, no install needed on their end. A Workspace Marketplace listing remains the natural next step post-hackathon, surfacing this directly from a form's own Extensions menu instead of a separate console.
 
 ## What makes the AI judgment real, not decorative
 
