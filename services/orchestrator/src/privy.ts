@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { PrivyClient } from "@privy-io/node";
+import { NotFoundError, PrivyClient } from "@privy-io/node";
+import type { LinkedAccount, User } from "@privy-io/node";
 import { config } from "./config.js";
 
 export const privy = new PrivyClient({
@@ -20,22 +20,53 @@ export const privy = new PrivyClient({
  */
 const WALLET_CHAIN_TYPE = "ethereum" as const;
 
-/** Deterministic, URL-safe external_id for a respondent — Privy's external_id only allows [a-zA-Z0-9_-]. */
-function respondentExternalId(email: string): string {
-  return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+/**
+ * Finds the embedded Ethereum wallet among a Privy User's linked accounts —
+ * the shape returned by both users().create() and users().getByEmailAddress().
+ */
+function findEthereumWallet(user: User) {
+  return user.linked_accounts.find(
+    (
+      account: LinkedAccount,
+    ): account is Extract<LinkedAccount, { type: "wallet"; connector_type: "embedded"; chain_type: "ethereum" }> =>
+      account.type === "wallet" &&
+      "connector_type" in account &&
+      account.connector_type === "embedded" &&
+      "chain_type" in account &&
+      account.chain_type === WALLET_CHAIN_TYPE,
+  );
 }
 
 /**
  * Gets the respondent's payout wallet if one already exists (idempotent
  * across repeat claims/resubmissions for the same email), otherwise
  * provisions one — invisibly, no wallet UI ever shown to the respondent.
+ *
+ * Provisioned via Privy's real pre-generated-wallet mechanism —
+ * `users().create()` with the respondent's email as a `linked_account` —
+ * not the bare `wallets().create()` keyed by an opaque internal id this
+ * used previously. That distinction matters: per Privy's own
+ * pre-generated-wallets model, a wallet created this way is the one that
+ * "automatically appears" the moment this respondent ever logs into a
+ * Privy-powered client with this same email — the real, supported claim
+ * path, confirmed against Privy's docs and the installed SDK's types
+ * rather than assumed. No login/claim UI exists yet to use that path; this
+ * only lays the groundwork so the wallet is actually claimable once one does.
  */
 export async function getOrCreateRespondentWallet(email: string): Promise<{ id: string; address: string }> {
-  const externalId = respondentExternalId(email);
+  const normalizedEmail = email.trim().toLowerCase();
 
-  const existing = await privy.wallets().list({ external_id: externalId, chain_type: WALLET_CHAIN_TYPE });
-  for await (const wallet of existing) {
-    return { id: wallet.id, address: wallet.address };
+  const existingUser = await privy
+    .users()
+    .getByEmailAddress({ address: normalizedEmail })
+    .catch((err) => {
+      if (err instanceof NotFoundError) return null;
+      throw err;
+    });
+
+  if (existingUser) {
+    const wallet = findEthereumWallet(existingUser);
+    if (wallet) return { id: wallet.id ?? "", address: wallet.address };
   }
 
   if (!config.privyRespondentPolicyId) {
@@ -44,11 +75,14 @@ export async function getOrCreateRespondentWallet(email: string): Promise<{ id: 
     );
   }
 
-  const wallet = await privy.wallets().create({
-    chain_type: WALLET_CHAIN_TYPE,
-    external_id: externalId,
-    policy_ids: [config.privyRespondentPolicyId],
+  const user = await privy.users().create({
+    linked_accounts: [{ type: "email", address: normalizedEmail }],
+    wallets: [{ chain_type: WALLET_CHAIN_TYPE, policy_ids: [config.privyRespondentPolicyId] }],
   });
 
-  return { id: wallet.id, address: wallet.address };
+  const wallet = findEthereumWallet(user);
+  if (!wallet) {
+    throw new Error(`Privy user ${user.id} was created but has no ${WALLET_CHAIN_TYPE} wallet on it`);
+  }
+  return { id: wallet.id ?? "", address: wallet.address };
 }
