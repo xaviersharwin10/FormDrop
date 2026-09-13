@@ -7,6 +7,12 @@ response — settled on Hedera, verified by an AI agent and a World ID Selfie
 Check, with a Privy-provisioned wallet the respondent never has to set up.
 No seed phrase. No wallet UI. No "crypto" anywhere in their experience.
 
+Every crypto-payments product's hardest problem is getting real people to
+show up. FormDrop skips that problem entirely: it's built *for* Google
+Forms, the tool 700M+ people already use every month — not a new app
+asking for adoption, but instant crypto settlement dropped directly into
+a habit that already exists at global scale.
+
 Built for [ETHOnline 2026](https://ethglobal.com/events/ethonline2026).
 
 ![Hedera](https://img.shields.io/badge/Settlement-Hedera_Testnet-8A2BE2)
@@ -26,12 +32,28 @@ Built for [ETHOnline 2026](https://ethglobal.com/events/ethonline2026).
 
 ---
 
+## Features
+
+- Turns any existing Google Form into a paid form — no new platform, no plugin to install.
+- AI agent (Google Gemini) judges every response for quality and fraud before a single payout fires.
+- One human, one payout, per form — enforced by a World ID Selfie Check, not just app logic.
+- Wallets are invisible: Privy silently provisions one by email, no seed phrase, no wallet UI, ever.
+- Payouts settle on Hedera in seconds, for a fraction of a cent.
+- An on-chain escrow contract guarantees no response is ever paid twice and no pot is ever overpaid.
+- Every AI verdict is anchored to Hedera Consensus Service — publicly auditable, no API key required.
+- Google Forms push notifications mean creators connect once, with zero Apps Script setup.
+- x402-metered AI verification — a real pay-per-call payment, not a flat API fee.
+
 ## The pitch
 
 Paid surveys have been tried before — as new standalone platforms nobody
 adopted, because the hard part was never the payment. It was getting anyone
-to show up. FormDrop doesn't ask anyone to show up somewhere new: it ships
-inside the tool 700M+ people already use every month.
+to show up. That's the real reason crypto payment products struggle to find
+users: they all require someone to adopt a new app first. FormDrop doesn't —
+it ships inside the tool 700M+ people already use every month, so the
+biggest addressable audience in crypto payments was sitting there
+unreachable the whole time, for a reason that had nothing to do with the
+technology.
 
 The two things that made "pay a stranger instantly for a form response"
 impossible before now both exist for the first time, together:
