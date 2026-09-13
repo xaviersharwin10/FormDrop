@@ -18,6 +18,22 @@
 const PICKER_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const GOOGLE_FORM_MIME_TYPE = "application/vnd.google-apps.form";
 
+/**
+ * `drive.file` — the same scope the Picker itself uses — is also one of
+ * the scopes Google's Forms API accepts for `forms.get` (confirmed against
+ * the API's own reference docs), so this needs no extra consent screen or
+ * backend round-trip: the token the Picker already obtained for the
+ * selected file is enough to read its settings directly.
+ */
+async function formCollectsVerifiedEmail(formId: string, accessToken: string): Promise<boolean> {
+  const res = await fetch(`https://forms.googleapis.com/v1/forms/${encodeURIComponent(formId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Couldn't read this form's settings (HTTP ${res.status})`);
+  const form = (await res.json()) as { settings?: { emailCollectionType?: string } };
+  return form.settings?.emailCollectionType === "VERIFIED";
+}
+
 declare global {
   interface Window {
     gapi?: any;
@@ -115,10 +131,22 @@ export async function openGoogleFormPicker(
       .setAppId(config.appId)
       .setOAuthToken(accessToken)
       .addView(view)
-      .setCallback((data: any) => {
-        if (data.action === window.google!.picker.Action.PICKED) {
-          const doc = data[window.google!.picker.Response.DOCUMENTS][0];
-          onPicked(doc[window.google!.picker.Document.ID]);
+      .setCallback(async (data: any) => {
+        if (data.action !== window.google!.picker.Action.PICKED) return;
+        const doc = data[window.google!.picker.Response.DOCUMENTS][0];
+        const formId = doc[window.google!.picker.Document.ID];
+        try {
+          const collectsVerifiedEmail = await formCollectsVerifiedEmail(formId, accessToken);
+          if (!collectsVerifiedEmail) {
+            onError(
+              "This form doesn't collect verified email addresses yet — FormDrop needs one to pay respondents. " +
+                "In the form's Settings → Responses, turn on \"Collect email addresses\" set to \"Verified\", then pick it again.",
+            );
+            return;
+          }
+          onPicked(formId);
+        } catch (err) {
+          onError((err as Error).message);
         }
       })
       .build();
