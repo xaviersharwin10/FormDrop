@@ -78,6 +78,18 @@ export function fundPotFromPrivyWallet(formId: string) {
   }).then((res) => asJson<FormStats>(res));
 }
 
+export function getEscrowInfo() {
+  return fetch(`${BASE_URL}/escrow/info`).then((res) => asJson<{ contractId: string; evmAddress: string }>(res));
+}
+
+export function verifyEscrowFunding(formId: string, transactionHash: string) {
+  return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/fund/verify-escrow`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transactionHash }),
+  }).then((res) => asJson<FormStats>(res));
+}
+
 export function getStats(formId: string) {
   return fetch(`${BASE_URL}/forms/${encodeURIComponent(formId)}/stats`).then((res) =>
     asJson<FormStats>(res),

@@ -108,6 +108,24 @@ export function buildFundPotTransaction(
     .setTransactionId(TransactionId.generate(payerAccountId));
 }
 
+/**
+ * A contract's EVM address is always its deterministic long-zero form
+ * (0x00...<contractNum>) — unlike an ECDSA account, a contract has no
+ * alias/public-key-derived address, so there's no analogous subtlety to the
+ * one in getOperatorEvmAddress(). Cached since it never changes for a fixed
+ * contract id. Confirmed via `GET /api/v1/contracts/{contractId}`.
+ */
+let cachedEscrowEvmAddress: string | null = null;
+export async function getEscrowContractEvmAddress(): Promise<string> {
+  if (cachedEscrowEvmAddress) return cachedEscrowEvmAddress;
+  const contractId = requireEscrowContractId();
+  const res = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/contracts/${contractId}`);
+  const data = (await res.json()) as { evm_address?: string };
+  if (!data.evm_address) throw new Error(`Mirror Node returned no evm_address for contract ${contractId}`);
+  cachedEscrowEvmAddress = data.evm_address;
+  return data.evm_address;
+}
+
 /** Reads a form's remaining on-chain pot balance, in tinybars. */
 export async function getEscrowPotBalanceTinybar(formId: string): Promise<string> {
   const client = operatorClient();

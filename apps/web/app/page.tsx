@@ -1,6 +1,6 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import {
   createFundingCheckoutSession,
@@ -9,6 +9,7 @@ import {
   type FundingAsset,
   fundPotFromPrivyWallet,
   getCreatorPrivyWallet,
+  getEscrowInfo,
   getFormsForCreator,
   getFormWatchStatus,
   getGoogleAccountStatus,
@@ -20,8 +21,10 @@ import {
   registerFormWatch,
   saveFormConfig,
   tinybarToHbar,
+  verifyEscrowFunding,
   verifyFunding,
 } from "@/lib/orchestrator";
+import { encodeFundPotCalldata, tinybarToWeibar } from "@/lib/escrowContract";
 import { hashscanTransactionUrl } from "@/lib/hashscan";
 import { openGoogleFormPicker } from "@/lib/googlePicker";
 import { HashChip } from "@/components/HashChip";
@@ -49,7 +52,9 @@ type View = "list" | "new" | "detail";
 
 export default function CreatorConsole() {
   const { ready, authenticated, user, login, logout } = usePrivy();
+  const { sendTransaction } = useSendTransaction();
   const creatorId = user?.id ?? null;
+  const ownWalletAddress = user?.wallet?.address ?? null;
 
   const [view, setView] = useState<View>("list");
   const [forms, setForms] = useState<FormStats[] | null>(null);
@@ -85,6 +90,10 @@ export default function CreatorConsole() {
   const [verifying, setVerifying] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [fundingWithPrivy, setFundingWithPrivy] = useState(false);
+  const [escrowEvmAddress, setEscrowEvmAddress] = useState<string | null>(null);
+  const [ownWalletBalanceTinybar, setOwnWalletBalanceTinybar] = useState<string | null>(null);
+  const [checkingOwnWalletBalance, setCheckingOwnWalletBalance] = useState(false);
+  const [fundingFromOwnWallet, setFundingFromOwnWallet] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadForms = useCallback(async (id: string) => {
@@ -279,6 +288,63 @@ export default function CreatorConsole() {
       setFundingWithPrivy(false);
     }
   }, [formId]);
+
+  useEffect(() => {
+    getEscrowInfo()
+      .then((info) => setEscrowEvmAddress(info.evmAddress))
+      .catch(() => {});
+  }, []);
+
+  const refreshOwnWalletBalance = useCallback(async () => {
+    if (!ownWalletAddress) return;
+    setCheckingOwnWalletBalance(true);
+    try {
+      const res = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/accounts/${ownWalletAddress}`);
+      const data = (await res.json()) as { balance?: { balance: number } };
+      setOwnWalletBalanceTinybar((data.balance?.balance ?? 0).toString());
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCheckingOwnWalletBalance(false);
+    }
+  }, [ownWalletAddress]);
+
+  useEffect(() => {
+    if (fundingMethod !== "privy" || !ownWalletAddress || ownWalletBalanceTinybar) return;
+    refreshOwnWalletBalance();
+  }, [fundingMethod, ownWalletAddress, ownWalletBalanceTinybar, refreshOwnWalletBalance]);
+
+  // Funds the pot with a real EVM transaction signed directly by the
+  // creator's own Privy login wallet (the embedded wallet from
+  // providers.tsx's defaultChain: hederaTestnet config), over Hedera's
+  // testnet JSON-RPC relay — no server-provisioned wallet involved. The
+  // relay speaks HBAR in weibar (18 decimals, confirmed against Hedera's
+  // own docs: "msg.value uses 18 decimals when it returns HBAR" — 1 tinybar
+  // = 1e10 weibar since 1 HBAR = 1e8 tinybar = 1e18 weibar), so the value
+  // sent must be scaled up from the tinybar amount the rest of the app
+  // works in. After the transaction confirms, the backend is asked to
+  // re-check the contract's real on-chain pot balance before marking the
+  // form funded — it doesn't just trust the browser's report.
+  const handleFundFromOwnWallet = useCallback(async () => {
+    if (!escrowEvmAddress || !stats) return;
+    setFundingFromOwnWallet(true);
+    setError(null);
+    try {
+      const { hash } = await sendTransaction({
+        to: escrowEvmAddress,
+        data: encodeFundPotCalldata(formId),
+        value: tinybarToWeibar(stats.potTinybar),
+        chainId: 296,
+      });
+      const result = await verifyEscrowFunding(formId, hash);
+      setStats(result);
+      setShowEditor(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setFundingFromOwnWallet(false);
+    }
+  }, [escrowEvmAddress, formId, sendTransaction, stats]);
 
   useEffect(() => {
     if (fundingMethod !== "privy" || !formId || privyWalletAddress) return;
@@ -738,6 +804,63 @@ export default function CreatorConsole() {
                         >
                           {fundingWithPrivy && <span className="spinner" />}
                           {fundingWithPrivy ? "Signing with Privy…" : "Fund from Privy wallet"}
+                        </button>
+
+                        <p className="hint" style={{ marginTop: 20, fontWeight: 600 }}>
+                          — or fund from your own wallet —
+                        </p>
+                        <p className="hint">
+                          The wallet you're already logged in with. Send it at least{" "}
+                          <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> from a testnet faucet, then
+                          sign one transaction — no extra address to keep track of.
+                        </p>
+                        <p className="mono">{ownWalletAddress ?? "Loading…"}</p>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginTop: 6,
+                            marginBottom: 14,
+                          }}
+                        >
+                          <span className="hint" style={{ margin: 0 }}>
+                            Balance:{" "}
+                            <strong>
+                              {ownWalletBalanceTinybar === null
+                                ? "…"
+                                : `${tinybarToHbar(ownWalletBalanceTinybar)} HBAR`}
+                            </strong>
+                          </span>
+                          <button
+                            type="button"
+                            className="secondary"
+                            style={{ padding: "2px 10px", fontSize: 12 }}
+                            onClick={refreshOwnWalletBalance}
+                            disabled={checkingOwnWalletBalance || !ownWalletAddress}
+                          >
+                            {checkingOwnWalletBalance ? "Checking…" : "Refresh"}
+                          </button>
+                        </div>
+                        {ownWalletBalanceTinybar !== null &&
+                          BigInt(ownWalletBalanceTinybar) < BigInt(stats.potTinybar) && (
+                            <p className="hint" style={{ color: "var(--danger, #b45309)" }}>
+                              <WarningIcon size={14} /> This wallet doesn't have enough testnet HBAR yet — send
+                              it the amount above from a faucet, then hit Refresh before funding.
+                            </p>
+                          )}
+                        <button
+                          onClick={handleFundFromOwnWallet}
+                          disabled={
+                            fundingFromOwnWallet ||
+                            !ownWalletAddress ||
+                            !escrowEvmAddress ||
+                            ownWalletBalanceTinybar === null ||
+                            BigInt(ownWalletBalanceTinybar) < BigInt(stats.potTinybar)
+                          }
+                        >
+                          {fundingFromOwnWallet && <span className="spinner" />}
+                          {fundingFromOwnWallet ? "Signing…" : "Fund from your wallet"}
                         </button>
                       </>
                     ) : (

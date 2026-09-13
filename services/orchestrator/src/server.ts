@@ -15,7 +15,7 @@ import {
 import { createFundingCheckoutSession, constructWebhookEvent, tinybarToUsdCents } from "./stripeFunding.js";
 import { getOrCreateCreatorWallet } from "./privyCreatorWallet.js";
 import { fundPotFromCreatorWallet } from "./hederaPrivyFunding.js";
-import { FUND_FEE_BUFFER_TINYBAR } from "./hederaEscrow.js";
+import { FUND_FEE_BUFFER_TINYBAR, getEscrowContractEvmAddress, getEscrowPotBalanceTinybar } from "./hederaEscrow.js";
 import { config } from "./config.js";
 import { claimAction, ClaimError, processClaim } from "./claim.js";
 import { getRpSignature } from "./world.js";
@@ -372,6 +372,49 @@ export function buildServer() {
       return reply.send(await buildStats(updated!));
     } catch (err) {
       request.log.error(err, "fundPotFromCreatorWallet failed");
+      return reply.status(502).send({ error: (err as Error).message });
+    }
+  });
+
+  // Public escrow info the browser needs to build its own fundPot() call —
+  // no formId, since the contract address is the same for every form.
+  app.get("/escrow/info", async (_request, reply) => {
+    try {
+      const evmAddress = await getEscrowContractEvmAddress();
+      return reply.send({ contractId: config.escrowContractId, evmAddress });
+    } catch (err) {
+      return reply.status(502).send({ error: (err as Error).message });
+    }
+  });
+
+  // Confirms funding for a form the creator funded by signing fundPot()
+  // themselves from their own wallet (client-side, not through us) — reads
+  // the contract's real on-chain pot balance rather than trusting the
+  // browser's report that a transaction succeeded.
+  app.post("/forms/:formId/fund/verify-escrow", async (request, reply) => {
+    const { formId } = request.params as { formId: string };
+    const { transactionHash } = request.body as Partial<{ transactionHash: string }>;
+    const formConfig = await getFormConfig(formId);
+    if (!formConfig) {
+      return reply.status(404).send({ error: "form not configured yet" });
+    }
+    if (formConfig.funded) {
+      return reply.status(409).send({ error: "form is already funded" });
+    }
+
+    const potTinybar = BigInt(formConfig.pricePerResponseTinybar) * BigInt(formConfig.maxResponses);
+
+    try {
+      const onChainTinybar = BigInt(await getEscrowPotBalanceTinybar(formId));
+      if (onChainTinybar < potTinybar) {
+        return reply.status(422).send({
+          error: `Escrow contract shows ${onChainTinybar} tinybars funded for this form, needs ${potTinybar}. If you just sent the transaction, wait a few seconds and try again.`,
+        });
+      }
+      const updated = await markFunded(formId, transactionHash ?? "creator-wallet-direct");
+      return reply.send(await buildStats(updated!));
+    } catch (err) {
+      request.log.error(err, "verify-escrow failed");
       return reply.status(502).send({ error: (err as Error).message });
     }
   });
