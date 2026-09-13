@@ -13,3 +13,4 @@ next-env.d.ts
 .clasp.json
 .clasprc.json
 coverage/
+DEMO_SCRIPT.md
