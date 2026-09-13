@@ -75,32 +75,41 @@ because it isn't asking anyone to adopt anything.
 
 ## Architecture
 
-One respondent journey, six steps, entirely on Hedera settlement rails:
+One respondent journey, entirely on Hedera settlement rails, now with an
+on-chain escrow contract enforcing the payout rules instead of just our
+own backend promising them:
 
 ```mermaid
 flowchart TD
     subgraph SETUP[" 🛠️ SETUP — once per form "]
-        A["👤 Creator<br/>sets a price, funds the pot<br/>card, crypto, or Privy wallet"]
+        A["👤 Creator<br/>picks a form from Drive (verified email required)<br/>sets a price, connects notifications"]
+        ESC[("🔒 FormDropEscrow<br/>on-chain pot, per form")]
+        A -->|"1. fund via Privy wallet<br/>signed contract call"| ESC
     end
 
     subgraph AUTOMATIC[" ⚡ EVERY RESPONSE — fully automatic "]
         B["📋 Respondent submits a Google Form<br/>700M+ people already use this"]
+        PS["📡 Pub/Sub push notification<br/>near-instant, zero install"]
         C["⚙️ Orchestrator<br/>the paying x402 client"]
-        D["🤖 Resource Server<br/>Gemini AI judges quality + fraud"]
-        E["🔗 Hedera Consensus Service<br/>verdict anchored — public, tamper-evident audit trail"]
-        B -->|"2. Google Forms push notification"| C
-        C -->|"3. x402 payment<br/>settled on Hedera"| D
-        D -->|"4. verdict returned"| E
+        D["🤖 Resource Server<br/>Gemini judges quality + fraud"]
+        E["🔗 Hedera Consensus Service<br/>verdict anchored — public, tamper-evident"]
+        B -->|"2."| PS -->|"3."| C
+        C -->|"4. x402 payment<br/>settled on Hedera"| D
+        D -->|"5. verdict returned"| E
     end
 
     subgraph CLAIM[" 🎉 CLAIM — respondent triggered "]
-        F["✅ Respondent clicks claim link<br/>World ID Selfie Check — proves unique personhood"]
-        G["💰 Privy wallet + on-chain escrow payout<br/>settles in seconds — no wallet setup, no seed phrase"]
-        F -->|"6. verified<br/>once per human per form"| G
+        F["✅ Selfie Check<br/>World ID proves unique personhood"]
+        N{"Already claimed<br/>on this form?"}
+        G["💰 Escrow pays out<br/>to a Privy wallet — no seed phrase"]
+        X["🚫 Rejected<br/>reason shown to respondent + creator"]
+        F -->|"7."| N
+        N -->|"no — 8. pay out"| G
+        N -->|"yes"| X
     end
 
-    A -->|"1. fund the pot<br/>one-time setup"| B
-    E -->|"5. if APPROVED<br/>claim email sent"| F
+    ESC -.->|"holds the funds"| G
+    E -->|"6. if APPROVED<br/>claim email sent"| F
 
     classDef creator fill:#eef2ff,stroke:#6366f1,stroke-width:2px,color:#1e1b4b
     classDef form fill:#f8fafc,stroke:#64748b,stroke-width:2px,color:#1e293b
@@ -108,13 +117,17 @@ flowchart TD
     classDef hedera fill:#ecfdf5,stroke:#10b981,stroke-width:2px,color:#064e3b
     classDef claim fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#7c2d12
     classDef payout fill:#d1fae5,stroke:#059669,stroke-width:3px,color:#064e3b
+    classDef escrow fill:#fefce8,stroke:#ca8a04,stroke-width:2.5px,color:#713f12
+    classDef reject fill:#fef2f2,stroke:#ef4444,stroke-width:2px,color:#7f1d1d
 
     class A creator
-    class B form
+    class B,PS form
     class C,D backend
     class E hedera
-    class F claim
+    class F,N claim
     class G payout
+    class ESC escrow
+    class X reject
 ```
 
 The **orchestrator** and **resource server** are deliberately two separate
