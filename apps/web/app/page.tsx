@@ -641,10 +641,13 @@ export default function CreatorConsole() {
                       <>
                         <p className="hint">
                           A Privy-custodied wallet, provisioned just for this form — separate from your own
-                          login wallet, since we hold no key of yours. Send it{" "}
-                          <strong>{tinybarToHbar(stats.potTinybar)} HBAR</strong> from a testnet faucet or
-                          wallet of your own, then fund the pot with one click — the transfer out of this
-                          wallet is authorized by a live Privy signature, not a key we hold ourselves.
+                          login wallet, since we hold no key of yours. Send it at least{" "}
+                          <strong>{tinybarToHbar(stats.privyFundingMinimumTinybar)} HBAR</strong> (the{" "}
+                          {tinybarToHbar(stats.potTinybar)} HBAR pot plus a small network-fee buffer, since
+                          this wallet also pays the on-chain escrow contract's own transaction fee) from a
+                          testnet faucet or wallet of your own, then fund the pot with one click — the
+                          transfer out of this wallet is authorized by a live Privy signature, not a key we
+                          hold ourselves.
                         </p>
                         <p className="mono">{privyWalletAddress ?? "Loading…"}</p>
                         <div
@@ -675,10 +678,10 @@ export default function CreatorConsole() {
                           </button>
                         </div>
                         {privyWalletBalanceTinybar !== null &&
-                          BigInt(privyWalletBalanceTinybar) < BigInt(stats.potTinybar) && (
+                          BigInt(privyWalletBalanceTinybar) < BigInt(stats.privyFundingMinimumTinybar) && (
                             <p className="hint" style={{ color: "var(--danger, #b45309)" }}>
                               <WarningIcon size={14} /> This wallet doesn't have enough testnet HBAR yet — send
-                              it the pot amount above from a faucet or another wallet, then hit Refresh before
+                              it the amount above from a faucet or another wallet, then hit Refresh before
                               funding.
                             </p>
                           )}
@@ -688,7 +691,7 @@ export default function CreatorConsole() {
                             fundingWithPrivy ||
                             !privyWalletAddress ||
                             privyWalletBalanceTinybar === null ||
-                            BigInt(privyWalletBalanceTinybar) < BigInt(stats.potTinybar)
+                            BigInt(privyWalletBalanceTinybar) < BigInt(stats.privyFundingMinimumTinybar)
                           }
                         >
                           {fundingWithPrivy && <span className="spinner" />}

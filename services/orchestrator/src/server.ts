@@ -15,6 +15,7 @@ import {
 import { createFundingCheckoutSession, constructWebhookEvent, tinybarToUsdCents } from "./stripeFunding.js";
 import { getOrCreateCreatorWallet } from "./privyCreatorWallet.js";
 import { fundPotFromCreatorWallet } from "./hederaPrivyFunding.js";
+import { FUND_FEE_BUFFER_TINYBAR } from "./hederaEscrow.js";
 import { config } from "./config.js";
 import { claimAction, ClaimError, processClaim } from "./claim.js";
 import { getRpSignature } from "./world.js";
@@ -57,6 +58,11 @@ async function buildStats(formConfig: FormConfig) {
     remainingResponses: Math.max(0, formConfig.maxResponses - approved),
     potTinybar: potTinybar.toString(),
     remainingBudgetTinybar: (potTinybar - spentTinybar).toString(),
+    // Funding via the Privy wallet path pays the escrow contract call's
+    // network fee out of that same wallet (see FUND_FEE_BUFFER_TINYBAR) —
+    // the wallet needs more than the exact pot amount, unlike a plain
+    // transfer would.
+    privyFundingMinimumTinybar: (potTinybar + FUND_FEE_BUFFER_TINYBAR).toString(),
   };
 }
 

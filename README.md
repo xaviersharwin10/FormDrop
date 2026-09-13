@@ -95,7 +95,7 @@ flowchart TD
 
     subgraph CLAIM[" 🎉 CLAIM — respondent triggered "]
         F["✅ Respondent clicks claim link<br/>World ID Selfie Check — proves unique personhood"]
-        G["💰 Privy wallet + Hedera payout<br/>settles in seconds — no wallet setup, no seed phrase"]
+        G["💰 Privy wallet + on-chain escrow payout<br/>settles in seconds — no wallet setup, no seed phrase"]
         F -->|"6. verified<br/>once per human per form"| G
     end
 
@@ -131,6 +131,7 @@ apps/
 services/
   resource-server/  Fastify — x402-gated verification service (the "service" being sold)
   orchestrator/     Fastify — webhook receiver, paying x402 client, HCS anchoring, payouts, email
+                    contracts/  FormDropEscrow.sol — on-chain payout escrow
                     src/db/  Postgres schema + client (forms, responses, used_nullifiers)
                     src/googleForms*.ts  Google Forms push-notification onboarding
 packages/
@@ -142,7 +143,7 @@ specs/            Planning docs and AI-assisted-workflow disclosure artifacts
 
 | Sponsor | What we built | Proof |
 | :--- | :--- | :--- |
-| **Hedera** | A live x402-gated verification endpoint, settled in testnet USDC (an HTS token) via the Blocky402 facilitator — real pay-per-call metering, not a flat fee. Every AI verdict is anchored to HCS as a public, tamper-evident audit trail. | [Payment tx](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789139948-706832928) · [HCS topic](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10460886) |
+| **Hedera** | A live x402-gated verification endpoint, settled in testnet USDC (an HTS token) via the Blocky402 facilitator — real pay-per-call metering, not a flat fee. Every AI verdict is anchored to HCS as a public, tamper-evident audit trail. A Solidity escrow contract on Hedera's Smart Contract Service now holds every form's pot and enforces "never pay the same response twice, never pay out more than was funded" on-chain — a real code-level guarantee, not just an application-level check. | [Payment tx](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1789139948-706832928) · [HCS topic](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10460886) · [Escrow contract](https://hashscan.io/testnet/contract/0.0.10515460) |
 | **Privy** | Two Privy wallets, two different Privy controls: a **policy**-gated, receive-only respondent payout wallet, and a creator-side pot-funding wallet owned by a **key quorum** — a real treasury operation for the growth/ops teams running incentivized research at scale (the 🏢 persona above), not a consumer toy. The funding transfer itself is a live financial flow: signed through Privy's `secp256k1_sign` RPC and executed as a real Hedera transaction, not just custodied. | [Privy-signed funding tx](https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.10439799-1789137988-901478637) |
 | **World** | Gates every claim behind a Selfie Check proof of unique personhood, scoped per form — makes pot-draining via fake-email farming worthless, enforced by a real database constraint. | Verified live on a physical device — see "Setup & proof" below |
 
@@ -479,16 +480,89 @@ live HTTP route (`POST /forms/:formId/verify-funding` with `"asset":
 "USDC"`) was exercised the same way, correctly returning a 422 with the
 exact computed minimum required.
 
-### Privy-signed pot funding (creator wallet → treasury)
+### On-chain payout escrow (Solidity smart contract)
 
-A third funding path where the *fund-the-pot transfer itself* executes
-through Privy, not just wallet custody: the orchestrator provisions a Privy
-wallet per form (`GET /forms/:formId/privy-wallet`), the creator sends it
-testnet HBAR, and `POST /forms/:formId/fund/privy-transfer` builds a real
-Hedera `TransferTransaction` moving that HBAR into the treasury, signed via
-a bridge (`services/orchestrator/src/hederaPrivySigner.ts`) between Privy's
-raw `secp256k1_sign` RPC and Hedera's external-signer `Transaction.signWith`
-— both confirmed from the installed SDKs' own source, not assumed.
+Every other integration in this README settles via native Hedera
+transactions (HBAR/HTS transfers) — genuinely on-chain, but the actual
+*rule* of "who gets paid, how much, how many times" lived only in our own
+application code and database. `contracts/FormDropEscrow.sol` moves that
+enforcement on-chain: a form's pot is held by the contract itself, and two
+invariants are now real, code-enforced guarantees instead of promises —
+
+- a given `(formId, responseId)` can **never** be paid out twice, ever —
+  a `mapping(bytes32 => bool) paid` the contract checks itself, not an
+  application-level check that could theoretically be bypassed by a bug
+  elsewhere in our own code
+- a form can **never** pay out more than was actually funded into it —
+  `potBalance[formId]` is decremented atomically inside the same
+  transaction that pays out, in the same contract
+
+What this deliberately does **not** make trustless, honestly: the AI
+verdict (Gemini) and the World ID uniqueness proof still happen off-chain
+— our backend's `operator` key still decides *when* to call `payout()`.
+That's a standard, well-understood pattern (off-chain computation,
+on-chain-enforced settlement of the result), not full trustlessness — but
+a real, defensible move from "trust our Node app entirely" to "trust our
+judgment inputs; the money-movement rules are enforced by code anyone can
+read."
+
+1. `pnpm --filter @formdrop/orchestrator hedera:deploy-escrow` — compiles
+   `FormDropEscrow.sol` (via the `solc` npm package, no Hardhat/Foundry
+   needed) and deploys it via the Hedera SDK's `ContractCreateFlow`,
+   printing an `ESCROW_CONTRACT_ID` to add to `.env`.
+2. Both the payout path (`claim.ts`) and the Privy-signed funding path
+   below now call this contract instead of moving HBAR directly.
+
+**Two non-obvious things confirmed empirically before trusting this,
+not assumed:**
+- For an ECDSA-keyed Hedera account, `msg.sender` inside the EVM is that
+  account's real alias EVM address (from its public key) — **not**
+  `AccountId.toSolidityAddress()`'s long-zero form. Deploying with the
+  long-zero form as the authorized `operator` made every `payout()` call
+  revert with "not operator" despite the stored value matching exactly
+  what was passed in; fixed by resolving the operator's real `evm_address`
+  from the Mirror Node instead.
+- Hedera's hollow-account auto-creation (HIP-583) fires for a top-level
+  `CryptoTransfer` to a brand-new EVM address, but **not** for a
+  contract's internal `.call{value}(...)` to one — the latter just fails
+  with a plain "transfer failed" revert. `payoutFromEscrow` in
+  `hederaEscrow.ts` sends one tiny (1 tinybar) top-level transfer to
+  "pre-warm" the recipient's account before every contract payout call —
+  harmless and idempotent for an address that already exists.
+
+**Proof this works end to end, on the real deployed contract (`0.0.10515460`
+on Hedera testnet):**
+- Funded a form's pot through the contract (`fundPot`), confirmed via the
+  contract's own `getPotBalance` view — an exact match, not just "the
+  transaction succeeded."
+- Paid a brand-new, never-before-seen address out of that pot — succeeded
+  only after the pre-warm transfer above, confirming the hollow-account
+  finding wasn't theoretical.
+- Attempted a **second** payout for the identical `(formId, responseId)` —
+  correctly rejected with `CONTRACT_REVERT_EXECUTED`, the contract's own
+  `require(!paid[...])` firing, independent of any application-level
+  check.
+
+### Privy-signed pot funding (creator wallet → escrow contract)
+
+A funding path where the *fund-the-pot transfer itself* executes through
+Privy, not just wallet custody: the orchestrator provisions a Privy wallet
+per form (`GET /forms/:formId/privy-wallet`), the creator sends it testnet
+HBAR, and `POST /forms/:formId/fund/privy-transfer` builds a real Hedera
+`ContractExecuteTransaction` calling the escrow's `fundPot`, paid for and
+signed entirely by that wallet — via a bridge
+(`services/orchestrator/src/hederaPrivySigner.ts`) between Privy's raw
+`secp256k1_sign` RPC and Hedera's external-signer `Transaction.signWith`,
+both confirmed from the installed SDKs' own source, not assumed.
+
+One real tradeoff worth stating plainly: unlike a plain `TransferTransaction`
+(which lets one account be named as the value source while a different
+account pays the network fee), a `ContractExecuteTransaction`'s payable
+amount and its network fee are both funded by the same designated payer
+account — confirmed empirically (a 0.05 HBAR `fundPot` call cost the payer
+~0.1 HBAR total). So the creator's wallet now needs the pot amount *plus*
+a small fee buffer, not the exact pot amount — the console's copy reflects
+this (`privyFundingMinimumTinybar`).
 
 This wallet is also locked down with a real Privy control: its `owner_id`
 is a **key quorum** — a P-256 authorization key our server holds, generated
@@ -503,15 +577,18 @@ can't gate this wallet the same way — `secp256k1_sign` isn't a nameable
 policy method in the installed SDK; a key quorum is the right tool here,
 not a workaround. See `specs/DECISIONS.md` for the full reasoning.)
 
-**Proof this works end to end:** provisioned a real Privy wallet
-(`0xdDB5F014dB67a754A911b52c9C76D862D70b9717`), sent it real testnet HBAR,
-then called the funding endpoint — it recovered the wallet's public key via
-ECDSA signature recovery (Privy never exposes it directly), signed a real
-transfer transaction through Privy with the key-quorum authorization
-attached, and got back a real `SUCCESS` receipt
-(`0.0.10439799@1789137988.901478637`) on the first attempt. Separately
-confirmed the control is real, not decorative: the same RPC call *without*
-the authorization signature was rejected by Privy's live API with a `401`.
+**Proof this works end to end:** a real Privy wallet
+(`0x7B35c488F0b6C999A808A3df31b237578c58FB8a`) called the live funding
+endpoint against the deployed escrow contract — recovered its public key
+via ECDSA signature recovery (Privy never exposes it directly), signed a
+real `ContractExecuteTransaction` through Privy with the key-quorum
+authorization attached, and got back a real `SUCCESS` receipt
+(`0.0.10499456@1789266813.048524832`). Independently confirmed via the
+contract's own `getPotBalance`, not just the receipt status: the form's
+on-chain pot balance increased by exactly the funded amount. Separately
+confirmed the key-quorum control is real, not decorative: the same RPC
+call *without* the authorization signature was rejected by Privy's live
+API with a `401`.
 
 ### World ID (Selfie Check on claim)
 

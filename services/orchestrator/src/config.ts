@@ -67,6 +67,15 @@ export const config = {
   /** Set once by `pnpm hcs:setup-topic`, then pasted into .env. */
   hcsAuditTopicId: process.env.HCS_AUDIT_TOPIC_ID,
 
+  /**
+   * Set once by `pnpm hedera:deploy-escrow`, then pasted into .env.
+   * Deliberately optional (not requireEnv) for the same reason the Google
+   * Forms config fields are: this must fail the specific routes that need
+   * it, at request time, not crash the whole orchestrator at boot before
+   * the value exists in a freshly deployed environment.
+   */
+  escrowContractId: process.env.ESCROW_CONTRACT_ID,
+
   /** Test-mode secret key from dashboard.stripe.com/test/apikeys — no billing needed. */
   stripeSecretKey: requireEnv("STRIPE_SECRET_KEY"),
   /** From the webhook endpoint's signing secret (dashboard, or `stripe listen`'s printed secret while developing). */
@@ -131,4 +140,12 @@ export function requireGoogleFormsConfig(): {
     throw new Error(`Google Forms push notifications aren't configured yet — missing: ${missing.join(", ")}`);
   }
   return config as ReturnType<typeof requireGoogleFormsConfig>;
+}
+
+/** Throws a clear, request-time error if the escrow contract hasn't been deployed/configured yet. */
+export function requireEscrowContractId(): string {
+  if (!config.escrowContractId) {
+    throw new Error("ESCROW_CONTRACT_ID isn't set yet — run `pnpm hedera:deploy-escrow` and add it to .env");
+  }
+  return config.escrowContractId;
 }

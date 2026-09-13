@@ -106,6 +106,8 @@ services:
         sync: false # the service account chosen when creating the push subscription's OIDC auth
       - key: GOOGLE_PUBSUB_PUSH_AUDIENCE
         sync: false # defaults to the push endpoint URL unless a custom audience was set on the subscription
+      - key: ESCROW_CONTRACT_ID
+        sync: false # from `pnpm hedera:deploy-escrow` — not secret, but only known after a real deploy
 
   - type: web
     name: formdrop-web

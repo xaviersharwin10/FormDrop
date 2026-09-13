@@ -15,7 +15,7 @@ The second problem is fraud: paying everyone who submits invites bots, copy-past
 ## Why this needs Web3
 
 - **Sub-dollar payments to strangers with no shared account, globally, instantly.** Card rails can't do this — fees alone would exceed the payout for many amounts, and many countries have no common payment app.
-- **Verifiable, pre-funded escrow.** A respondent can see "this form is funded and locked" before spending time on it — a checkable fact, not the creator's promise.
+- **Verifiable, pre-funded escrow.** A respondent can see "this form is funded and locked" before spending time on it — a checkable fact, not the creator's promise. Backed by a real Solidity contract (`contracts/FormDropEscrow.sol`) holding each form's pot on-chain, enforcing "never pay the same response twice" and "never pay out more than was funded" as code, not just application logic.
 - **Instant settlement at near-zero cost per transaction.**
 - **Proof of unique humanity**, so one person can't submit fifty times to drain the pot — the structural weakness that makes instant payout risky without it.
 

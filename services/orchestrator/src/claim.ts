@@ -3,7 +3,7 @@ import { getResponse, markClaimed, recordClaimError } from "./db/responses.js";
 import { isNullifierUsed, markNullifierUsed } from "./db/nullifiers.js";
 import { verifyWorldIdProof, type IdKitVerifyPayload } from "./world.js";
 import { getOrCreateRespondentWallet } from "./privy.js";
-import { payHbarToEvmAddress } from "./hederaPayout.js";
+import { payoutFromEscrow } from "./hederaEscrow.js";
 
 export function claimAction(formId: string): string {
   return `formdrop-claim-${formId}`;
@@ -70,7 +70,9 @@ export async function processClaim(
   }
 
   const wallet = await getOrCreateRespondentWallet(response.payload.respondentEmail);
-  const payoutTransactionId = await payHbarToEvmAddress(
+  const payoutTransactionId = await payoutFromEscrow(
+    formId,
+    responseId,
     wallet.address,
     formConfig.pricePerResponseTinybar,
   );

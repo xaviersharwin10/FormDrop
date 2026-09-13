@@ -12,6 +12,7 @@ export interface FormStats {
   remainingResponses: number;
   potTinybar: string;
   remainingBudgetTinybar: string;
+  privyFundingMinimumTinybar: string;
 }
 
 async function asJson<T>(res: Response): Promise<T> {

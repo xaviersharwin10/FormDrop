@@ -914,3 +914,85 @@ ping.** Watches expire 7 days after creation; the submission deadline
 no watch registered now will outlive the deadline. The renewal endpoint
 stays in the code (harmless, and correct if this project has a life after
 submission) but isn't wired to a scheduler.
+
+## 2026-09-13 — On-chain escrow contract, closing the "why no smart contract" gap
+
+Every settlement in this project was already a real Hedera transaction —
+but the actual *rule* ("who gets paid, how much, once") lived only in our
+own application code and Postgres, not on-chain. Fair, honest gap: "Web3"
+here meant real settlement rails + a public audit trail (HCS) + a
+decentralized identity check (World ID), but the money-movement *logic*
+was still "trust our Node server." Decided to close it with a real
+Solidity contract rather than leave it as a talking point, given the time
+available on submission day itself.
+
+**Scope, deliberately bounded, not oversold.** `contracts/FormDropEscrow.sol`
+makes two things on-chain, code-enforced invariants instead of
+application-level checks: a `(formId, responseId)` pair can never be paid
+twice (`mapping(bytes32 => bool) paid`), and a form can never pay out more
+than was funded into it (`potBalance[formId]` decremented atomically in
+the same call that pays out). It deliberately does **not** attempt to make
+the AI verdict or the World ID proof themselves on-chain/trustless — that
+would need an on-chain verifier for both, a much bigger undertaking than
+fits in the remaining time. This is the standard "off-chain computation,
+on-chain-enforced settlement" pattern, not full trustlessness, and the
+README says so explicitly rather than overclaiming.
+
+**Rollout decision:** given the choice between shipping this as a fully
+separate, additive path (zero risk to the already-proven native-transfer
+flow) versus replacing the existing funding/payout paths outright, chose
+the full replacement — deliberately, with the user's explicit sign-off
+given the risk of touching a working, already-demo-proven pipeline on
+deadline day. Justified by testing every step empirically against the
+real deployed contract before wiring the actual funding/payout code paths
+to it, not just trusting the design on paper.
+
+**Two non-obvious integration bugs, both caught by testing before
+shipping, not assumed to work:**
+
+1. **Wrong operator address format.** Deployed the contract with the
+   authorized `operator` set to `AccountId.toSolidityAddress()`'s
+   long-zero form (`0x00...<accountNum>`) — every `payout()` call reverted
+   with "not operator" despite the stored value matching that form
+   exactly when read back via a view call. Root cause: for an ECDSA-keyed
+   Hedera account, `msg.sender` inside the EVM is the account's *real*
+   alias EVM address (derived from its public key), not the long-zero
+   form — confirmed by fetching the account's `evm_address` from the
+   Mirror Node and finding it was a completely different value
+   (`0x307d0ef2...` vs `0x00...9f4c77`). Redeployed with the real
+   `evm_address` and it worked immediately.
+
+2. **No hollow-account creation from inside a contract call.** The first
+   real payout attempt to a brand-new EVM address reverted with a plain
+   "transfer failed" from the contract's own `require(sent, ...)`. Hedera
+   docs don't clearly state whether HIP-583's hollow-account
+   auto-creation fires for a contract's internal `.call{value}(...)`, the
+   same way it does for a top-level `CryptoTransfer` (already relied on
+   elsewhere in this project for respondent payouts) — tested it directly
+   rather than guessing, and confirmed it does **not**. Fixed by having
+   `payoutFromEscrow` send one tiny (1 tinybar) top-level transfer to the
+   recipient first, "pre-warming" the hollow-account creation, before
+   calling the contract. Harmless to repeat for an address that already
+   exists, so it's unconditional rather than tracked per-address.
+
+**A third, smaller wrinkle on the funding side:** a `TransferTransaction`
+lets one account be named as the value source while a *different* account
+(ours) pays the network fee — which is how the pre-contract version of
+Privy-signed pot funding kept the creator's wallet needing only the exact
+pot amount. A `ContractExecuteTransaction` doesn't have that flexibility —
+its payable amount and its network fee are both funded by whichever
+account is the transaction's designated payer, confirmed empirically (a
+0.05 HBAR `fundPot` call cost the payer ~0.1 HBAR total, fee included).
+So the creator's wallet now needs the pot amount plus a small fee buffer
+(`FUND_FEE_BUFFER_TINYBAR`, exposed to the console as
+`privyFundingMinimumTinybar`) — a real, disclosed tradeoff of moving this
+onto a contract, not hidden from the UI copy.
+
+**Verified before considering this done, not just "the code compiles":**
+deployed the real contract (`0.0.10515460`), funded a form's pot through
+it via the actual creator-wallet-signed code path (not a shortcut), read
+the balance back via the contract's own `getPotBalance` (not just trusting
+a `SUCCESS` receipt), paid out to a brand-new address successfully, and
+confirmed a second payout attempt for the identical `(formId, responseId)`
+was rejected by the contract itself with `CONTRACT_REVERT_EXECUTED` — the
+actual on-chain guarantee firing, not assumed from reading the Solidity.
