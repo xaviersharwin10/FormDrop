@@ -99,15 +99,6 @@ This is the multi-step one — a **separate** OAuth client from #9, since this o
 3. Create an **API key** (Credentials → Create credentials → API key). Restrict it (Websites) to this app's origin **and** `https://docs.google.com/*` — the Picker renders inside a `docs.google.com` iframe, and omitting that origin breaks every picker call.
 4. In `apps/web/.env.local`, set `NEXT_PUBLIC_GOOGLE_PICKER_API_KEY` and `NEXT_PUBLIC_GOOGLE_PICKER_APP_ID` (the Cloud project's numeric **project number**, not the project ID string).
 
-## 12. Card funding (Stripe, optional)
-
-1. Grab a free test-mode secret key at [dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys). Set `STRIPE_SECRET_KEY` in `services/orchestrator/.env`.
-2. Register a webhook endpoint for `checkout.session.completed` pointing at `<orchestrator-url>/webhooks/stripe`, and set its signing secret as `STRIPE_WEBHOOK_SECRET`. Locally without a public URL, use the [Stripe CLI](https://stripe.com/docs/stripe-cli): `stripe listen --forward-to localhost:4002/webhooks/stripe`.
-
-## 13. Testnet USDC funding (optional, alongside HBAR)
-
-1. `pnpm --filter @formdrop/orchestrator hedera:associate-usdc` — associates the treasury account with testnet USDC (`0.0.429274`).
-
 ---
 
 ## Running it
