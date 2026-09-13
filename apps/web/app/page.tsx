@@ -64,6 +64,9 @@ export default function CreatorConsole() {
   const [googleConnectBanner, setGoogleConnectBanner] = useState<"connected" | "error" | null>(null);
   const [watchExpireTimeIso, setWatchExpireTimeIso] = useState<string | null>(null);
   const [registeringWatch, setRegisteringWatch] = useState(false);
+  const [watchError, setWatchError] = useState<string | null>(null);
+  const [watchAttemptedFor, setWatchAttemptedFor] = useState<string | null>(null);
+  const [watchStatusLoaded, setWatchStatusLoaded] = useState(true);
 
   const [stats, setStats] = useState<FormStats | null>(null);
   const [responses, setResponses] = useState<FormResponseSummary[]>([]);
@@ -117,16 +120,39 @@ export default function CreatorConsole() {
   const handleEnableNotifications = useCallback(async () => {
     if (!formId || !creatorId) return;
     setRegisteringWatch(true);
-    setError(null);
+    setWatchError(null);
+    setWatchAttemptedFor(formId);
     try {
       const watch = await registerFormWatch(formId, creatorId);
       setWatchExpireTimeIso(watch.expireTimeIso);
     } catch (err) {
-      setError((err as Error).message);
+      setWatchError((err as Error).message);
     } finally {
       setRegisteringWatch(false);
     }
   }, [formId, creatorId]);
+
+  // Instant notifications are enabled automatically as soon as a form is
+  // picked and a Google account is connected — no separate click. Gated on
+  // watchStatusLoaded so this doesn't race the existing-watch status check
+  // for a reopened form and double-register one that's already active, and
+  // on watchAttemptedFor so a failure doesn't retry-loop; handleEnableNotifications
+  // stays wired to a retry link for that case.
+  useEffect(() => {
+    if (!formId || !creatorId || !googleEmail) return;
+    if (watchExpireTimeIso || registeringWatch) return;
+    if (!watchStatusLoaded || watchAttemptedFor === formId) return;
+    handleEnableNotifications();
+  }, [
+    formId,
+    creatorId,
+    googleEmail,
+    watchExpireTimeIso,
+    registeringWatch,
+    watchStatusLoaded,
+    watchAttemptedFor,
+    handleEnableNotifications,
+  ]);
 
   const handlePickFromDrive = useCallback(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID;
@@ -166,13 +192,17 @@ export default function CreatorConsole() {
     setPrivyWalletAddress(null);
     setFundingTxId("");
     setWatchExpireTimeIso(null);
+    setWatchError(null);
+    setWatchAttemptedFor(null);
+    setWatchStatusLoaded(false);
     setError(null);
     setView("detail");
     getResponses(form.formId).then(setResponses).catch(() => {});
     getTreasuryAccountId(form.formId).then(setTreasury).catch(() => {});
     getFormWatchStatus(form.formId)
       .then((w) => setWatchExpireTimeIso(w.expireTimeIso))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setWatchStatusLoaded(true));
   }, []);
 
   const startNewForm = useCallback(() => {
@@ -183,6 +213,10 @@ export default function CreatorConsole() {
     setShowEditor(true);
     setResponses([]);
     setTreasury(null);
+    setWatchExpireTimeIso(null);
+    setWatchError(null);
+    setWatchAttemptedFor(null);
+    setWatchStatusLoaded(true);
     setError(null);
     setView("new");
   }, []);
@@ -534,13 +568,21 @@ export default function CreatorConsole() {
               ) : googleEmail ? (
                 <>
                   <p className="hint">
-                    Get responses the instant they're submitted, without installing anything on this form —
-                    powered by your connected Google account.
-                  </p>
-                  <button onClick={handleEnableNotifications} disabled={registeringWatch}>
                     {registeringWatch && <span className="spinner" />}
-                    {registeringWatch ? "Enabling…" : "Enable instant notifications"}
-                  </button>
+                    {registeringWatch
+                      ? "Turning on instant notifications…"
+                      : watchError
+                        ? "Couldn't turn on instant notifications."
+                        : "Instant notifications turn on automatically once this form is connected."}
+                  </p>
+                  {watchError && (
+                    <p className="error">
+                      <WarningIcon size={12} /> {watchError}{" "}
+                      <button className="ghost" onClick={handleEnableNotifications} disabled={registeringWatch}>
+                        Retry
+                      </button>
+                    </p>
+                  )}
                 </>
               ) : (
                 <p className="hint">
